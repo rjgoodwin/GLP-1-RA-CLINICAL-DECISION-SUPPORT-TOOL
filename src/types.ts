@@ -1,5 +1,5 @@
 export type Gender = 'male' | 'female' | null;
-export type PopulationType = 'general' | 'asian_indigenous';
+export type PopulationType = 'general' | 'asian_indigenous' | null;
 
 export interface PatientData {
   age: number;
@@ -14,9 +14,10 @@ export interface PatientData {
 
 export interface Interaction {
   medication: string;
-  severity: 'high' | 'moderate' | 'low';
+  severity: 'absolute' | 'relative' | 'monitoring';
   warning: string;
   management: string;
+  recommendationLabel?: string;
 }
 
 export interface Complications {

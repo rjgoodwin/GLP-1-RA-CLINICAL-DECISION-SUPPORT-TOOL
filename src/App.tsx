@@ -24,7 +24,8 @@ import {
   Lock,
   ShieldCheck,
   Check,
-  Clock
+  Clock,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -44,46 +45,146 @@ const INITIAL_PATIENT: PatientData = {
   height: 0,
   bmi: 0,
   waistCircumference: 0,
-  population: 'general',
+  population: null,
   currentMedications: [],
 };
 
-const MEDICATION_INTERACTIONS: { keywords: string[], severity: 'high' | 'moderate' | 'low', warning: string, management: string }[] = [
+const INTERACTION_MEDICATIONS = [
   {
-    keywords: ['insulin'],
-    severity: 'high',
-    warning: 'Increased risk of severe hypoglycemia.',
-    management: 'Consider reducing insulin dose by 20-50% upon initiation. Frequent blood glucose monitoring is essential.'
+    id: 'insulin',
+    label: 'Insulin Therapy',
+    severity: 'monitoring' as const,
+    warning: 'High risk of severe hypoglycemia.',
+    management: 'Prescribe with monitoring. Reduce insulin dose by 20-50% upon GLP-1RA initiation. Perform frequent self-monitored blood glucose.',
+    recommendationLabel: 'Prescribe with monitoring & dose adjustment'
   },
   {
-    keywords: ['gliclazide', 'glipizide', 'glimepiride', 'sulfonylurea', 'daonil', 'diamicron'],
-    severity: 'high',
-    warning: 'Increased risk of hypoglycemia.',
-    management: 'Consider reducing sulfonylurea dose by 50% or stopping. Monitor blood glucose closely.'
+    id: 'sulfonylureas',
+    label: 'Sulfonylureas (SUs)',
+    severity: 'monitoring' as const,
+    warning: 'Significantly increased risk of hypoglycemia.',
+    management: 'Prescribe with monitoring. Reduce SU dose by 50% or cease upon initiation of GLP-1RA. Strict self-monitored blood glucose required.',
+    recommendationLabel: 'Prescribe with monitoring & dose reduction'
   },
   {
-    keywords: ['perindopril', 'ramipril', 'irbesartan', 'candesartan', 'amlodipine', 'atenolol', 'metoprolol', 'antihypertensive', 'lisinopril', 'telmisartan'],
-    severity: 'moderate',
-    warning: 'Potential for additive hypotensive effect.',
-    management: 'Monitor blood pressure routinely. Down-titrate antihypertensives if hypotension or dizziness occurs.'
+    id: 'dpp4i',
+    label: 'DPP-4 Inhibitors (Gliptins)',
+    severity: 'relative' as const,
+    warning: 'Pharmacological redundancy with GLP-1RA therapy.',
+    management: 'Relatively contraindicated. Discontinue DPP-4 inhibitor as it works on the same pathway as GLP-1RA and provides no additive benefit.',
+    recommendationLabel: 'Relatively contraindicated / Cease medication'
   },
   {
-    keywords: ['warfarin', 'coumadin', 'marevan'],
-    severity: 'moderate',
-    warning: 'Potential for altered INR due to delayed gastric emptying and dietary changes.',
-    management: 'Monitor INR one week after initiation and during dose escalation.'
+    id: 'sglt2i',
+    label: 'SGLT2 Inhibitors (Gliflozins)',
+    severity: 'monitoring' as const,
+    warning: 'Risk of euglycemic ketoacidosis, especially if used with very low energy diets (VLED).',
+    management: 'Prescribe with monitoring. Monitor ketones if patient is on restricted calories or VLED. Ensure adequate hydration.',
+    recommendationLabel: 'Prescribe with monitoring & ketone assessment'
   },
   {
-    keywords: ['dapagliflozin', 'empagliflozin', 'sglt2', 'forxiga', 'jardiance'],
-    severity: 'moderate',
-    warning: 'Risk of euglycaemic ketoacidosis (especially if combined with VLED).',
-    management: 'Monitor ketones if patient feels unwell. Consider temporary cessation if on VLED.'
+    id: 'warfarin',
+    label: 'Warfarin / Anticoagulants',
+    severity: 'monitoring' as const,
+    warning: 'Potential for altered oral anticoagulant absorption due to delayed gastric emptying.',
+    management: 'Prescribe with monitoring. Monitor Prothrombin Time (PT) and INR within 1 week of initiation and following any dose titration.',
+    recommendationLabel: 'Prescribe with monitoring (INR)'
   },
   {
-    keywords: ['digoxin', 'lithium', 'phenytoin', 'theophylline'],
-    severity: 'low',
-    warning: 'Delayed gastric emptying may affect absorption of narrow therapeutic index drugs.',
-    management: 'Monitor clinical effect and serum levels where appropriate.'
+    id: 'digoxin',
+    label: 'Digoxin',
+    severity: 'monitoring' as const,
+    warning: 'Delayed gastric emptying may impact peak plasma concentrations (Cmax).',
+    management: 'Prescribe with monitoring. Monitor clinical response and serum digoxin levels during GLP-1RA initiation and dose escalation.',
+    recommendationLabel: 'Prescribe with monitoring (Serum levels)'
+  },
+  {
+    id: 'lithium',
+    label: 'Lithium',
+    severity: 'monitoring' as const,
+    warning: 'Impact on gastric motility may alter lithium absorption dynamics.',
+    management: 'Prescribe with monitoring. Monitor serum lithium levels and clinical status for signs of toxicity or reduced efficacy.',
+    recommendationLabel: 'Prescribe with monitoring (Serum levels)'
+  },
+  {
+    id: 'phenytoin',
+    label: 'Phenytoin',
+    severity: 'monitoring' as const,
+    warning: 'Narrow therapeutic window drug; absorption may be affected by GLP-1RA therapy.',
+    management: 'Prescribe with monitoring. Monitor serum phenytoin levels especially when titrating GLP-1RA dosage.',
+    recommendationLabel: 'Prescribe with monitoring (Serum levels)'
+  },
+  {
+    id: 'theophylline',
+    label: 'Theophylline',
+    severity: 'monitoring' as const,
+    warning: 'Potential for altered absorption profile due to changes in gastric emptying.',
+    management: 'Prescribe with monitoring. Monitor serum theophylline concentrations during treatment adjustments.',
+    recommendationLabel: 'Prescribe with monitoring (Serum levels)'
+  },
+  {
+    id: 'cyclosporin',
+    label: 'Cyclosporin',
+    severity: 'monitoring' as const,
+    warning: 'Immunosuppressant with narrow therapeutic index; absorption timing may change.',
+    management: 'Prescribe with monitoring. Monitor cyclosporin blood levels closely to avoid under-immunosuppression or toxicity.',
+    recommendationLabel: 'Prescribe with monitoring (Blood levels)'
+  },
+  {
+    id: 'oral_contraceptive',
+    label: 'Oral Contraceptives',
+    severity: 'monitoring' as const,
+    warning: 'Delayed gastric emptying may theoretically alter the absorption of oral contraceptives.',
+    management: 'Prescribe with monitoring. Advise taking oral contraceptives at least 1 hour before or 11 hours after GLP-1RA if concerned about contraceptive failure.',
+    recommendationLabel: 'Prescribe with precaution / timing advice'
+  },
+  {
+    id: 'penicillins',
+    label: 'Penicillins',
+    severity: 'monitoring' as const,
+    warning: 'Delayed gastric emptying may delay and reduce peak concentration (Cmax) and efficacy.',
+    management: 'Prescribe with monitoring. Monitor clinical effectiveness closely; absorption timing may be critical for infection control.',
+    recommendationLabel: 'Prescribe with monitoring (Efficacy)'
+  },
+  {
+    id: 'nitrofurantoin',
+    label: 'Nitrofurantoin',
+    severity: 'monitoring' as const,
+    warning: 'Potential for delayed and reduced peak plasma concentrations due to gastric motility changes.',
+    management: 'Prescribe with monitoring. Monitor for clinical response and ensure infection resolution.',
+    recommendationLabel: 'Prescribe with monitoring (Efficacy)'
+  },
+  {
+    id: 'acei',
+    label: 'ACE Inhibitors (ACEIs)',
+    severity: 'monitoring' as const,
+    warning: 'Risk of additive hypotension or orthostasis as weight loss reduces baseline blood pressure.',
+    management: 'Prescribe with monitoring. Monitor BP regularly. Consider dose reduction if blood pressure falls below target.',
+    recommendationLabel: 'Prescribe with monitoring (BP)'
+  },
+  {
+    id: 'arbs',
+    label: 'Angiotensin II Receptor Blockers (ARBs)',
+    severity: 'monitoring' as const,
+    warning: 'Risk of additive hypotension or orthostasis, especially with concurrent weight loss.',
+    management: 'Prescribe with monitoring. Monitor BP regularly. Review dose if blood pressure is consistently below target.',
+    recommendationLabel: 'Prescribe with monitoring (BP)'
+  },
+  {
+    id: 'diuretics',
+    label: 'Diuretics',
+    severity: 'monitoring' as const,
+    warning: 'Risk of hypotension, orthostasis, and potential dehydration/electrolyte imbalance.',
+    management: 'Prescribe with monitoring. Monitor BP and hydration status. Consider dose reduction or cessation if blood pressure falls below target.',
+    recommendationLabel: 'Prescribe with monitoring (BP & Hydration)'
+  },
+  {
+    id: 'levothyroxine',
+    label: 'Levothyroxine',
+    severity: 'monitoring' as const,
+    warning: 'Absorption may be delayed or altered due to delayed gastric motility.',
+    management: 'Prescribe with monitoring. Monitor thyroid function (TSH level) shortly after beginning therapy or when changing dose.',
+    recommendationLabel: 'Prescribe with monitoring (TSH)'
   }
 ];
 
@@ -129,16 +230,37 @@ const CONTRAINDICATION_LABELS: Record<string, string> = {
 
 export default function App() {
   const [patient, setPatient] = useState<PatientData>(INITIAL_PATIENT);
+  const [comphistoryNone, setComphistoryNone] = useState(false);
+  const [contraNone, setContraNone] = useState(false);
+  const [medsNone, setMedsNone] = useState(false);
   const [complications, setComplications] = useState<Complications>(INITIAL_COMPLICATIONS);
   const [contraindications, setContraindications] = useState<Contraindications>(INITIAL_CONTRAINDICATIONS);
-  const [medInput, setMedInput] = useState('');
+  const [showClinicalNote, setShowClinicalNote] = useState(false);
+  const [isGeneratingNote, setIsGeneratingNote] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
+  const [isCalculating, setIsCalculating] = useState(false);
 
-  const resetTool = () => {
-    setPatient(INITIAL_PATIENT);
-    setComplications(INITIAL_COMPLICATIONS);
-    setContraindications(INITIAL_CONTRAINDICATIONS);
-    setMedInput('');
-  };
+  // Simulate calculation delay for UX
+  React.useEffect(() => {
+    if (patient.weight > 0 || patient.height > 0) {
+      setIsCalculating(true);
+      const timer = setTimeout(() => setIsCalculating(false), 400);
+      return () => clearTimeout(timer);
+    }
+  }, [
+    patient.weight, 
+    patient.height, 
+    patient.waistCircumference, 
+    patient.age, 
+    patient.gender, 
+    patient.population,
+    patient.currentMedications,
+    complications,
+    contraindications,
+    comphistoryNone,
+    contraNone,
+    medsNone
+  ]);
 
   const calculateBMI = (weight: number, height: number) => {
     if (weight > 0 && height > 0) {
@@ -157,45 +279,103 @@ export default function App() {
 
   const toggleComplication = (key: keyof Complications) => {
     setComplications(prev => ({ ...prev, [key]: !prev[key] }));
+    setComphistoryNone(false);
+  };
+
+  const toggleComphistoryNone = () => {
+    setComphistoryNone(prev => !prev);
+    if (!comphistoryNone) {
+      setComplications(INITIAL_COMPLICATIONS);
+    }
   };
 
   const toggleContraindication = (key: keyof Contraindications) => {
     setContraindications(prev => ({ ...prev, [key]: !prev[key] }));
+    setContraNone(false);
   };
 
-  const addMedication = () => {
-    if (medInput.trim()) {
-      setPatient(prev => ({
-        ...prev,
-        currentMedications: [...prev.currentMedications, medInput.trim()]
-      }));
-      setMedInput('');
+  const toggleContraNone = () => {
+    setContraNone(prev => !prev);
+    if (!contraNone) {
+      setContraindications(INITIAL_CONTRAINDICATIONS);
     }
   };
 
-  const removeMedication = (index: number) => {
+  const toggleMedication = (id: string) => {
+    setPatient(prev => {
+      const current = prev.currentMedications;
+      const isSelected = current.includes(id);
+      return {
+        ...prev,
+        currentMedications: isSelected 
+          ? current.filter(m => m !== id) 
+          : [...current, id]
+      };
+    });
+    setMedsNone(false);
+  };
+
+  const toggleMedsNone = () => {
+    setMedsNone(prev => !prev);
+    if (!medsNone) {
+      setPatient(prev => ({ ...prev, currentMedications: [] }));
+    }
+  };
+
+  const resetAll = () => {
+    setPatient(INITIAL_PATIENT);
+    setComplications(INITIAL_COMPLICATIONS);
+    setContraindications(INITIAL_CONTRAINDICATIONS);
+    setComphistoryNone(false);
+    setContraNone(false);
+    setMedsNone(false);
+  };
+
+  const resetAnthropometry = () => {
     setPatient(prev => ({
       ...prev,
-      currentMedications: prev.currentMedications.filter((_, i) => i !== index)
+      weight: 0,
+      height: 0,
+      bmi: 0,
+      waistCircumference: 0
     }));
   };
 
+  const resetPatientContext = () => {
+    setPatient(prev => ({
+      ...prev,
+      age: 0,
+      gender: null,
+      population: null
+    }));
+  };
+
+  const resetClinicalAssessment = () => {
+    setComplications(INITIAL_COMPLICATIONS);
+    setContraindications(INITIAL_CONTRAINDICATIONS);
+    setComphistoryNone(false);
+    setContraNone(false);
+  };
+
+  const resetInteractions = () => {
+    setPatient(prev => ({
+      ...prev,
+      currentMedications: []
+    }));
+    setMedsNone(false);
+  };
+
   const interactions = useMemo(() => {
-    const identified: Interaction[] = [];
-    patient.currentMedications.forEach(med => {
-      const lowerMed = med.toLowerCase();
-      MEDICATION_INTERACTIONS.forEach(inter => {
-        if (inter.keywords.some(k => lowerMed.includes(k))) {
-          identified.push({
-            medication: med,
-            severity: inter.severity,
-            warning: inter.warning,
-            management: inter.management
-          });
-        }
-      });
+    return patient.currentMedications.map(id => {
+      const info = INTERACTION_MEDICATIONS.find(m => m.id === id);
+      return {
+        medication: info?.label || id,
+        severity: info?.severity || 'monitoring',
+        warning: info?.warning || '',
+        management: info?.management || '',
+        recommendationLabel: info?.recommendationLabel
+      };
     });
-    return identified;
   }, [patient.currentMedications]);
 
   const assessment = useMemo(() => {
@@ -203,6 +383,14 @@ export default function App() {
     const hasComplications = Object.values(complications).some(v => v);
     const hasContraindications = Object.values(contraindications).some(v => v);
     
+    const identifiedComorbidities = Object.entries(complications)
+      .filter(([_, active]) => active)
+      .map(([key]) => COMPLICATION_LABELS[key]);
+    
+    if (identifiedComorbidities.length > 0) {
+      reasons.push(`Comorbidities Identified: ${identifiedComorbidities.join(', ')}`);
+    }
+
     // Eligibility Logic based on Australian Weight Management Algorithm
     const isAsianOrIndigenous = patient.population === 'asian_indigenous';
     const bmiThreshold = isAsianOrIndigenous ? 27.5 : 30;
@@ -223,8 +411,6 @@ export default function App() {
       reasons.push(`Abdominal obesity (Waist Circumference > ${wcThreshold} cm)`);
     }
 
-    const isEligible = (eligibleByBMI || eligibleByWC) && !hasContraindications && patient.age >= 18;
-
     const missingFactors: string[] = [];
     if (patient.age > 0 && patient.age < 18) {
       missingFactors.push('Patient must be 18 years or older');
@@ -232,7 +418,60 @@ export default function App() {
     if (hasContraindications) {
       missingFactors.push('Presence of clinical contraindications makes therapy inappropriate');
     }
-    if (!eligibleByBMI && !eligibleByWC && !hasContraindications && patient.age >= 18) {
+
+    const interactionSummary = patient.currentMedications.length > 0 ? {
+      hasAbsolute: interactions.some(i => i.severity === 'absolute'),
+      hasRelative: interactions.some(i => i.severity === 'relative'),
+      hasMonitoring: interactions.some(i => i.severity === 'monitoring'),
+    } : null;
+
+    // Safety assessment
+    const hasAbsoluteDrugInteraction = interactionSummary?.hasAbsolute || false;
+    const hasRelativeDrugInteraction = interactionSummary?.hasRelative || false;
+
+    // Validation logic for completion
+    const isWeightComplete = patient.weight > 0;
+    const isHeightComplete = patient.height > 0;
+    const isWaistComplete = patient.waistCircumference > 0;
+    const isAgeComplete = patient.age > 0;
+    const isGenderComplete = patient.gender !== null;
+    const isPopulationComplete = patient.population !== null;
+    const isComplicationsComplete = Object.values(complications).some(v => v) || comphistoryNone;
+    const isContraindicationsComplete = Object.values(contraindications).some(v => v) || contraNone;
+    const isMedicationsComplete = patient.currentMedications.length > 0 || medsNone;
+    
+    const isComplete = isWeightComplete && isHeightComplete && isWaistComplete && 
+                        isAgeComplete && isGenderComplete && isPopulationComplete &&
+                        isComplicationsComplete && isContraindicationsComplete && isMedicationsComplete;
+
+    const missingSections: string[] = [];
+    if (!isWeightComplete) missingSections.push('Weight');
+    if (!isHeightComplete) missingSections.push('Height');
+    if (!isWaistComplete) missingSections.push('Waist Circumference');
+    if (!isAgeComplete) missingSections.push('Age (Adults 18+)');
+    if (!isGenderComplete) missingSections.push('Sex Assigned at Birth');
+    if (!isPopulationComplete) missingSections.push('High Metabolic Risk Population status');
+    if (!isComplicationsComplete) missingSections.push('Comorbidities Assessment');
+    if (!isContraindicationsComplete) missingSections.push('Contraindications Assessment');
+    if (!isMedicationsComplete) missingSections.push('Interactions Check');
+
+    // A patient is clinical eligible based on metrics
+    const meetsMedicalCriteria = (eligibleByBMI || eligibleByWC) && !hasContraindications && patient.age >= 18;
+    
+    // Final eligibility takes absolute drug interactions into account
+    const isEligible = isComplete && meetsMedicalCriteria && !hasAbsoluteDrugInteraction;
+
+    // Determine the "Safety State" for the eligibility box
+    let safetyState: 'eligible' | 'caution' | 'ineligible' | 'incomplete' = 'incomplete';
+    if (!isComplete) {
+      safetyState = 'incomplete';
+    } else if (isEligible) {
+      safetyState = hasRelativeDrugInteraction ? 'caution' : 'eligible';
+    } else {
+      safetyState = 'ineligible';
+    }
+
+    if (isComplete && !eligibleByBMI && !eligibleByWC && !hasContraindications && patient.age >= 18) {
       missingFactors.push(`BMI must be ≥ ${bmiThreshold} kg/m²`);
       if (!hasComplications) {
         missingFactors.push(`BMI ≥ ${overweightThreshold} kg/m² with one or more clinical comorbidities (e.g. Type 2 Diabetes, OSA, Hypertension)`);
@@ -240,14 +479,22 @@ export default function App() {
       missingFactors.push(`Waist Circumference must be > ${wcThreshold} cm`);
     }
 
+    if (hasAbsoluteDrugInteraction) {
+      missingFactors.push('Absolute pharmacological contraindication detected');
+    }
+
     return {
       isEligible,
+      safetyState,
       reasons,
-      hasContraindications,
+      hasContraindications: hasContraindications || hasAbsoluteDrugInteraction,
       isUnderage: patient.age > 0 && patient.age < 18,
-      missingFactors
+      isComplete,
+      missingSections,
+      missingFactors,
+      interactionSummary
     };
-  }, [patient, complications, contraindications]);
+  }, [patient, complications, contraindications, interactions, comphistoryNone, contraNone, medsNone]);
 
   const medications: MedicationOption[] = [
     {
@@ -279,34 +526,114 @@ export default function App() {
     }
   ];
 
+  const generateClinicalNote = () => {
+    const date = new Date().toLocaleDateString('en-AU');
+    const time = new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+    
+    let note = `CLINICAL NOTE: Weight Management Assessment (GLP-1 RA Eligibility)\n`;
+    note += `Date: ${date} ${time}\n`;
+    note += `--------------------------------------------------\n\n`;
+    
+    note += `PATIENT ANTHROPOMETRY:\n`;
+    note += `- Age: ${patient.age} yrs\n`;
+    note += `- Sex: ${patient.gender || 'Not specified'}\n`;
+    note += `- Height: ${patient.height} cm\n`;
+    note += `- Weight: ${patient.weight} kg\n`;
+    note += `- BMI: ${patient.bmi} kg/m²\n`;
+    note += `- Waist Circumference: ${patient.waistCircumference} cm\n`;
+    note += `- Population Group: ${patient.population === 'asian_indigenous' ? 'High Metabolic Risk (Asian/Indigenous)' : 'General Population'}\n\n`;
+    
+    const activeComorb = Object.entries(complications)
+      .filter(([_, v]) => v)
+      .map(([k]) => COMPLICATION_LABELS[k]);
+    note += `COMORBIDITIES:\n`;
+    note += activeComorb.length > 0 ? activeComorb.map(c => `- ${c}`).join('\n') : `- None identified`;
+    note += `\n\n`;
+    
+    const activeContra = Object.entries(contraindications)
+      .filter(([_, v]) => v)
+      .map(([k]) => CONTRAINDICATION_LABELS[k]);
+    note += `CONTRAINDICATIONS:\n`;
+    note += activeContra.length > 0 ? activeContra.map(c => `- ${c}`).join('\n') : `- None identified`;
+    note += `\n\n`;
+    
+    note += `MEDICATION INTERACTIONS:\n`;
+    if (patient.currentMedications.length > 0) {
+      interactions.forEach(i => {
+        note += `- ${i.medication}: ${i.recommendationLabel} (${i.severity.toUpperCase()})\n`;
+      });
+    } else {
+      note += `- None identified\n`;
+    }
+    note += `\n`;
+    
+    note += `DETERMINATION:\n`;
+    note += `Status: ${assessment.safetyState.toUpperCase()}\n`;
+    if (assessment.reasons.length > 0) {
+      note += `Criteria Met:\n${assessment.reasons.map(r => `  * ${r}`).join('\n')}\n`;
+    }
+    if (assessment.missingFactors.length > 0) {
+      note += `Clinical Constraints:\n${assessment.missingFactors.map(f => `  * ${f}`).join('\n')}\n`;
+    }
+    
+    note += `\nRECOMMENDATIONS:\n`;
+    if (assessment.isEligible) {
+      note += `- Eligible for GLP-1 RA pharmacotherapy as an adjunct to lifestyle intervention.\n`;
+      note += `- Suggested medications per algorithm: ${medications.map(m => m.name).join(', ')}.\n`;
+      note += `- Follow standard escalation schedule and monthly clinical review.\n`;
+      note += `- Emphasise lifestyle modification including calorie deficit and 150-300 mins exercise/week.\n`;
+    } else {
+      note += `- Not meeting criteria for GLP-1 RA at this time based on algorithm thresholds.\n`;
+      note += `- Recommend ongoing lifestyle support and review metrics in 3-6 months.\n`;
+    }
+    
+    note += `\nNote generated via Clinical Decision Support Tool. [References: Markovic et al 2022, AJGP 2025]`;
+    
+    return note;
+  };
+
+  const handleToggleNote = () => {
+    if (!showClinicalNote) {
+      setIsGeneratingNote(true);
+      setTimeout(() => {
+        setIsGeneratingNote(false);
+        setShowClinicalNote(true);
+      }, 800);
+    } else {
+      setShowClinicalNote(false);
+    }
+  };
+
+  const handleCopyNote = () => {
+    const text = generateClinicalNote();
+    navigator.clipboard.writeText(text).then(() => {
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    });
+  };
+
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900">
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 transition-transform hover:scale-105 duration-300">
+            <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-600 rounded-xl md:rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 transition-transform hover:scale-105 duration-300">
               <Stethoscope size={24} />
             </div>
             <div>
-              <h1 className="text-lg md:text-xl font-extrabold tracking-tight text-slate-900 leading-none py-1">
-                <span className="block">GLUCAGON-LIKE RECEPTOR-1 AGONISTS (GLP-1RAs)</span>
-                <span className="block text-indigo-600 mt-1 uppercase text-[13px] md:text-base">Clinical Decision Support Tool for Weight Management</span>
+              <h1 className="text-[10px] md:text-xl font-extrabold tracking-tight text-slate-900 leading-none py-1">
+                <span className="block uppercase">GLUCAGON-LIKE RECEPTOR-1 AGONISTS (GLP-1RAs)</span>
+                <span className="block text-indigo-600 mt-1 uppercase text-[8px] md:text-sm font-black">Clinical Decision Support Tool</span>
               </h1>
             </div>
           </div>
-          <div className="hidden lg:flex items-center gap-6">
-            <div className="flex items-center gap-3 text-xs font-semibold text-slate-400 bg-slate-50 px-4 py-2 rounded-full border border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-3 text-[10px] font-semibold text-slate-400 bg-slate-50 px-4 py-2 rounded-full border border-slate-100">
               <Activity size={14} className="text-indigo-500" />
               <span>Evidence-Based Algorithm</span>
             </div>
-            <button 
-              onClick={resetTool}
-              className="group flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-xl transition-all font-bold border border-slate-200 hover:border-red-200 shadow-sm shadow-slate-200/50"
-            >
-              <RotateCcw size={16} className="transition-transform group-hover:rotate-[-45deg]" />
-              <span className="text-sm">Reset</span>
-            </button>
           </div>
         </div>
       </header>
@@ -316,154 +643,92 @@ export default function App() {
           {/* Left Column: Inputs */}
           <div className="lg:col-span-7 space-y-6">
             <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="p-6 bg-amber-50 border-2 border-amber-200 rounded-[32px] shadow-sm flex items-start gap-4 mb-2"
+            >
+              <AlertCircle className="text-amber-600 shrink-0 mt-0.5" size={20} />
+              <div>
+                <h3 className="text-sm font-black text-amber-900 uppercase tracking-tight">Important Clinical Guidance</h3>
+                <p className="text-xs text-amber-800/80 font-medium leading-relaxed mt-1">
+                  All 4 sections below must be completed before patient eligibility can be determined. Please ensure that each field is marked either with positive findings or by selecting "None of the above" where applicable.
+                </p>
+              </div>
+            </motion.div>
+
+            <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.6 }}
             >
           
-          {/* Section 1: Patient Profile */}
-          <section className="glass-card rounded-[32px] overflow-hidden">
+          {/* Section 1: Anthropometry Check */}
+          <section className="glass-card rounded-[32px] overflow-hidden border-2 border-slate-100 shadow-xl shadow-slate-100/50">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
-                  <User size={18} className="text-indigo-600" />
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+                  <span className="font-black text-lg">1</span>
                 </div>
-                <h2 className="font-extrabold text-slate-800 tracking-tight">Patient Profile</h2>
+                    <div>
+                      <h2 className="font-black text-slate-800 tracking-tight text-lg uppercase">Anthropometry Check</h2>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Weight, Height & BMI Measurements</p>
+                    </div>
               </div>
-              <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] border border-slate-100 px-3 py-1 rounded-full">Step 01</span>
-            </div>
-            <div className="p-6 space-y-6 bg-white/40">
-              <div className="p-4 bg-indigo-50/50 border border-indigo-100/50 rounded-2xl flex items-start gap-4">
-                <Lock size={16} className="text-indigo-600 mt-0.5 shrink-0" />
-                <p className="text-xs text-indigo-900/70 leading-relaxed font-medium">
-                  <span className="font-bold text-indigo-900">Privacy Notice:</span> To maintain patient confidentiality and comply with Australian Privacy Principles, do not enter any patient-identifying information such as names or dates of birth. Data entry should be limited to necessary clinical parameters only [5].
-                </p>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <label className="label-upper">Age (Years)</label>
-                  <input 
-                    type="number" 
-                    className="input-field"
-                    placeholder=""
-                    value={patient.age || ''}
-                    onChange={(e) => handlePatientChange('age', parseInt(e.target.value) || 0)}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="label-upper">Gender</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(['female', 'male'] as const).map((g) => (
-                      <button
-                        key={g}
-                        onClick={() => handlePatientChange('gender', g)}
-                        className={`h-11 rounded-xl border text-[11px] font-bold uppercase tracking-wider transition-all ${
-                          patient.gender === g 
-                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100' 
-                          : 'bg-white border-slate-300 text-slate-500 hover:border-slate-400'
-                        }`}
-                      >
-                        {g}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="label-upper">Population Group</label>
-                  <div className="pt-2">
-                    <label className="flex items-start gap-3 cursor-pointer group">
-                      <div className="relative flex items-center mt-0.5">
-                        <input 
-                          type="checkbox" 
-                          className="peer sr-only"
-                          checked={patient.population === 'asian_indigenous'}
-                          onChange={() => handlePatientChange('population', patient.population === 'asian_indigenous' ? 'general' : 'asian_indigenous')}
-                        />
-                        <div className="w-6 h-6 border-2 border-slate-400 rounded-lg peer-checked:bg-indigo-600 peer-checked:border-indigo-600 transition-all group-hover:border-indigo-200 shadow-sm"></div>
-                        <Check size={14} className="absolute left-1 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-sm font-bold text-slate-700 group-hover:text-indigo-900 transition-colors">
-                          High Metabolic Risk Population
-                        </span>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-tight">
-                          (Asian / Indigenous descent)
-                        </p>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white/60 border border-slate-200/60 p-5 rounded-2xl italic mt-2">
-                <p className="text-[11px] text-slate-500 leading-normal font-sans">
-                  <span className="font-bold text-slate-700 not-italic">Clinical Note:</span> Specific ethnic groups, including people of East Asian, South Asian, South-East Asian, and Aboriginal or Torres Strait Islander descent, are classified as high metabolic risk. The Australian Obesity Management Algorithm recommends identifying these groups because they experience obesity-related complications at lower BMI levels [1].
-                </p>
-              </div>
-            </div>
-          </section>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-        >
-          {/* Section 2: Patient Anthropometry */}
-          <section className="glass-card rounded-[32px] overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center">
-                  <Activity size={18} className="text-sky-600" />
-                </div>
-                <h2 className="font-extrabold text-slate-800 tracking-tight">Patient Anthropometry</h2>
+                <button 
+                  onClick={resetAnthropometry}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                >
+                  <RotateCcw size={12} />
+                  <span>Reset Section</span>
+                </button>
               </div>
-              <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] border border-slate-100 px-3 py-1 rounded-full">Step 02</span>
             </div>
             <div className="p-6 space-y-6 bg-white/40">
-              <p className="text-[11px] text-slate-500 leading-relaxed bg-sky-50/50 p-4 rounded-2xl border border-sky-100/50 italic font-medium">
-                Baseline criteria for identifying overweight and obesity [1].
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                <div className="space-y-3">
                   <label className="label-upper">Weight (kg)</label>
                   <input 
                     type="number" 
-                    className="input-field text-lg"
-                    placeholder=""
+                    className={`input-field text-lg font-bold transition-colors ${patient.weight > 0 ? 'border-indigo-600 text-indigo-600' : 'border-slate-300'}`}
+                    placeholder="0.0"
                     value={patient.weight || ''}
                     onChange={(e) => handlePatientChange('weight', parseFloat(e.target.value) || 0)}
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <label className="label-upper">Height (cm)</label>
                   <input 
                     type="number" 
-                    className="input-field text-lg"
-                    placeholder=""
+                    className={`input-field text-lg font-bold transition-colors ${patient.height > 0 ? 'border-indigo-600 text-indigo-600' : 'border-slate-300'}`}
+                    placeholder="0"
                     value={patient.height || ''}
                     onChange={(e) => handlePatientChange('height', parseFloat(e.target.value) || 0)}
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <label className="label-upper">BMI (kg/m²)</label>
-                  <input 
-                    type="number" 
-                    className="input-field text-xl font-bold bg-slate-50/80 border-slate-300 text-indigo-600"
-                    placeholder=""
-                    value={patient.bmi ? patient.bmi.toFixed(1) : ''}
-                    readOnly
-                  />
+                  <div className={`input-field flex items-center justify-between transition-all ${
+                    patient.bmi >= 30 ? 'bg-amber-50 border-amber-200' : 
+                    patient.bmi > 0 ? 'bg-indigo-50/30 border-indigo-600' : 
+                    'bg-slate-50 border-slate-200'
+                  }`}>
+                    <span className={`text-2xl font-black ${
+                      patient.bmi >= 30 ? 'text-amber-600' : 
+                      patient.bmi > 0 ? 'text-indigo-600' : 
+                      'text-indigo-400'
+                    }`}>
+                      {patient.bmi ? patient.bmi.toFixed(1) : '0.0'}
+                    </span>
+                  </div>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <label className="label-upper">Waist Circumference (cm)</label>
                   <input 
                     type="number" 
-                    className="input-field text-lg"
-                    placeholder=""
+                    className={`input-field text-lg font-bold transition-colors ${patient.waistCircumference > 0 ? 'border-indigo-600 text-indigo-600' : 'border-slate-300'}`}
+                    placeholder="0"
                     value={patient.waistCircumference || ''}
                     onChange={(e) => handlePatientChange('waistCircumference', parseInt(e.target.value) || 0)}
                   />
@@ -473,154 +738,345 @@ export default function App() {
           </section>
         </motion.div>
 
-
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-        >
-          {/* Section 2: Clinical Context */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Comorbidities */}
-            <section className="glass-card rounded-[32px] overflow-hidden group">
-              <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
-                    <Activity size={18} className="text-amber-500" />
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+            >
+              {/* Section 2: Patient Context */}
+              <section className="glass-card rounded-[32px] overflow-hidden border-2 border-slate-100 shadow-xl shadow-slate-100/50">
+                <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+                      <span className="font-black text-lg">2</span>
+                    </div>
+                    <div>
+                      <h2 className="font-black text-slate-800 tracking-tight text-lg uppercase">Patient Context</h2>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Demographics & Population</p>
+                    </div>
                   </div>
-                  <h2 className="font-extrabold text-slate-800 tracking-tight text-sm">Comorbidities</h2>
-                </div>
-                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest px-2 py-0.5 border border-slate-100 rounded-lg">Step 03</span>
-              </div>
-              <div className="p-4 space-y-3 bg-white/40">
-                <p className="text-[11px] text-slate-500 leading-normal bg-amber-50/50 p-3 rounded-xl border border-amber-100/50 italic font-medium">
-                  Identifies treatment intensity and BMI eligibility thresholds [1].
-                </p>
-                <div className="grid grid-cols-1 gap-1">
-                  {Object.keys(INITIAL_COMPLICATIONS).map((key) => (
-                    <label key={key} className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/60 transition-all cursor-pointer group/item border border-transparent hover:border-slate-100 shadow-sm hover:shadow-md shadow-slate-200/20">
-                      <div className="relative flex items-center">
-                        <input 
-                          type="checkbox" 
-                          className="peer sr-only"
-                          checked={complications[key as keyof Complications]}
-                          onChange={() => toggleComplication(key as keyof Complications)}
-                        />
-                        <div className="w-5 h-5 border-2 border-slate-400 rounded-lg peer-checked:bg-amber-500 peer-checked:border-amber-500 transition-all group-hover/item:border-amber-200"></div>
-                        <CheckCircle2 size={12} className="absolute left-1 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
-                      </div>
-                      <span className="text-xs font-bold text-slate-600 group-hover/item:text-slate-900 transition-colors uppercase tracking-tight">
-                        {COMPLICATION_LABELS[key] || key}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            {/* Contraindications */}
-            <section className="glass-card rounded-[32px] overflow-hidden">
-              <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center">
-                    <AlertCircle size={18} className="text-rose-500" />
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={resetPatientContext}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                    >
+                      <RotateCcw size={12} />
+                      <span>Reset Section</span>
+                    </button>
                   </div>
-                  <h2 className="font-extrabold text-slate-800 tracking-tight text-sm">Contraindications</h2>
                 </div>
-                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest px-2 py-0.5 border border-slate-100 rounded-lg">Step 04</span>
-              </div>
-              <div className="p-4 space-y-3 bg-white/40">
-                <p className="text-[11px] text-slate-500 leading-normal bg-rose-50/50 p-3 rounded-xl border border-rose-100/30 italic font-medium">
-                  Critical safety exclusion factors for GLP-1RA therapy inappropriately [4].
-                </p>
-                <div className="grid grid-cols-1 gap-1">
-                  {Object.keys(INITIAL_CONTRAINDICATIONS).map((key) => (
-                    <label key={key} className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/60 transition-all cursor-pointer group/item border border-transparent hover:border-slate-100 shadow-sm hover:shadow-md shadow-slate-200/20">
-                      <div className="relative flex items-center">
-                        <input 
-                          type="checkbox" 
-                          className="peer sr-only"
-                          checked={contraindications[key as keyof Contraindications]}
-                          onChange={() => toggleContraindication(key as keyof Contraindications)}
-                        />
-                        <div className="w-5 h-5 border-2 border-slate-400 rounded-lg peer-checked:bg-rose-500 peer-checked:border-rose-500 transition-all group-hover/item:border-rose-200"></div>
-                        <AlertTriangle size={12} className="absolute left-1 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
-                      </div>
-                      <span className="text-xs font-bold text-slate-600 group-hover/item:text-slate-900 transition-colors uppercase tracking-tight">
-                        {CONTRAINDICATION_LABELS[key] || key}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </section>
-          </div>
-        </motion.div>
+                <div className="p-6 space-y-6 bg-white/40">
+                  <div className="p-4 bg-indigo-50/50 border border-indigo-100/50 rounded-2xl flex items-start gap-4">
+                    <Lock size={16} className="text-indigo-600 mt-0.5 shrink-0" />
+                    <p className="text-xs text-indigo-900/70 leading-relaxed font-medium">
+                      <span className="font-bold text-indigo-900">Privacy Notice:</span> To maintain patient confidentiality and comply with Australian Privacy Principles, do not enter any patient-identifying information [5].
+                    </p>
+                  </div>
 
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-        >
-          {/* Section 3: Medication List */}
-          <section className="glass-card rounded-[32px] overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
-                  <Pill size={18} className="text-emerald-600" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <label className="label-upper">Age (Adults 18+)</label>
+                      <input 
+                        type="number" 
+                        className={`input-field font-bold transition-all ${patient.age > 0 ? 'border-indigo-600 text-indigo-600' : 'border-slate-300'}`}
+                        placeholder="18"
+                        value={patient.age || ''}
+                        onChange={(e) => handlePatientChange('age', parseInt(e.target.value) || 0)}
+                      />
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <label className="label-upper">Sex Assigned at Birth</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(['female', 'male'] as const).map((g) => (
+                          <button
+                            key={g}
+                            onClick={() => handlePatientChange('gender', g)}
+                            className={`h-12 rounded-xl border text-[11px] font-bold uppercase tracking-wider transition-all ${
+                              patient.gender === g 
+                              ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100' 
+                              : 'bg-white border-slate-300 text-slate-500 hover:border-slate-400'
+                            }`}
+                          >
+                            {g}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={`p-5 rounded-2xl transition-all border-2 ${
+                    patient.population === 'asian_indigenous' 
+                      ? 'bg-orange-50 border-orange-500 shadow-lg shadow-orange-100' 
+                      : patient.population === 'general'
+                        ? 'bg-emerald-50 border-emerald-500 shadow-sm'
+                        : 'bg-orange-50/50 border-orange-200 border-dashed'
+                  }`}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1.5 font-sans">
+                        <div className="flex items-center gap-2">
+                          <AlertCircle size={14} className={patient.population === null ? "text-orange-500" : "opacity-0"} />
+                          <span className={`text-sm font-black uppercase tracking-tight transition-all ${
+                            patient.population === 'asian_indigenous' ? 'text-orange-900' :
+                            patient.population === 'general' ? 'text-emerald-900' :
+                            'text-orange-800'
+                          }`}>
+                            High Metabolic Risk Population
+                          </span>
+                        </div>
+                        <p className={`text-[11px] leading-relaxed transition-all font-medium ${
+                          patient.population === 'asian_indigenous' ? 'text-orange-700' :
+                          patient.population === 'general' ? 'text-emerald-700' :
+                          'text-orange-600'
+                        }`}>
+                          Specifically East/South/South-East Asian, Aboriginal, or Torres Strait Islander descent [1].
+                        </p>
+                      </div>
+                      
+                      <div className="flex bg-white/80 p-1.5 rounded-2xl border border-slate-200 shadow-inner shrink-0 self-center">
+                        <button
+                          onClick={() => handlePatientChange('population', 'asian_indigenous')}
+                          className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${
+                            patient.population === 'asian_indigenous'
+                              ? 'bg-orange-600 text-white shadow-xl shadow-orange-200 scale-105'
+                              : 'text-slate-400 hover:text-orange-600 hover:bg-orange-50'
+                          }`}
+                        >
+                          Yes
+                        </button>
+                        <button
+                          onClick={() => handlePatientChange('population', 'general')}
+                          className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${
+                            patient.population === 'general'
+                              ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-200 scale-105'
+                              : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
+                          }`}
+                        >
+                          No
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <h2 className="font-extrabold text-slate-800 tracking-tight">Current Medications</h2>
-              </div>
-              <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest border border-slate-100 px-3 py-1 rounded-full">Step 05</span>
-            </div>
-            <div className="p-6 space-y-6 bg-white/40">
-              <p className="text-[11px] text-slate-500 leading-relaxed bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/50 italic font-medium">
-                Identifying potential interactions is critical. GLP-1RA can alter absorption through delayed gastric emptying and increase hypoglycemia risk [4].
-              </p>
-              <div className="flex gap-4">
-                <div className="relative flex-1">
-                  <input 
-                    type="text" 
-                    className="input-field pl-11 h-14 text-base"
-                    placeholder="Enter medication name..."
-                    value={medInput}
-                    onChange={(e) => setMedInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && addMedication()}
-                  />
-                  <Pill size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+              </section>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
+              {/* Section 3: Clinical Assessment */}
+            <section className="glass-card rounded-[32px] overflow-hidden border-2 border-slate-100 shadow-xl shadow-slate-100/50">
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center text-white shadow-lg shadow-amber-100">
+                    <span className="font-black text-lg">3</span>
+                  </div>
+                  <div>
+                    <h2 className="font-black text-slate-800 tracking-tight text-lg uppercase">Clinical Assessment</h2>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Screening & Safety</p>
+                  </div>
                 </div>
-                <button 
-                  onClick={addMedication}
-                  className="h-14 px-8 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95 flex items-center gap-2"
-                >
-                  <Plus size={18} />
-                  Add
-                </button>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={resetClinicalAssessment}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                  >
+                    <RotateCcw size={12} />
+                    <span>Reset Section</span>
+                  </button>
+                </div>
               </div>
               
-              <div className="flex flex-wrap gap-3">
-                <AnimatePresence>
-                  {patient.currentMedications.map((med, i) => (
-                    <motion.div 
-                      key={`${med}-${i}`}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      className="flex items-center gap-3 px-4 py-2 bg-white border border-slate-300 rounded-2xl group shadow-sm hover:border-indigo-200 hover:bg-indigo-50/30 transition-all"
-                    >
-                      <span className="text-sm font-bold text-slate-700 lowercase first-letter:uppercase">{med}</span>
-                      <button 
-                        onClick={() => removeMedication(i)}
-                        className="text-slate-300 hover:text-rose-500 transition-colors bg-slate-50 p-1 rounded-lg"
-                      >
-                        <X size={14} />
-                      </button>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-                {patient.currentMedications.length === 0 && (
-                  <p className="text-[11px] text-slate-400 italic bg-slate-50 border border-dashed border-slate-200 p-4 rounded-2xl w-full text-center">No medications added. Enter current medications to check for interactions.</p>
-                )}
+              <div className="p-6 space-y-8 bg-white/40">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  {/* Comorbidities */}
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest mb-1 flex items-center gap-2">
+                        <Plus size={14} className="text-amber-500" />
+                        Comorbidities
+                      </h3>
+                      <p className="text-[10px] text-slate-400 font-bold leading-tight uppercase tracking-tighter">Affects eligibility thresholds</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      {Object.keys(INITIAL_COMPLICATIONS).map((key) => (
+                        <label key={key} className="flex items-center gap-3 p-2 rounded-xl group/item cursor-pointer border border-transparent hover:bg-white hover:shadow-sm transition-all">
+                          <div className="relative flex items-center">
+                            <input 
+                              type="checkbox" 
+                              className="peer sr-only"
+                              checked={complications[key as keyof Complications]}
+                              onChange={() => toggleComplication(key as keyof Complications)}
+                            />
+                            <div className="w-5 h-5 border-2 border-slate-400 rounded-lg peer-checked:bg-amber-500 peer-checked:border-amber-500 transition-all group-hover/item:border-amber-200"></div>
+                            <Check size={12} className="absolute left-1 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
+                          </div>
+                          <span className="text-[11px] font-bold text-slate-600 group-hover/item:text-slate-900 transition-colors uppercase tracking-tight">
+                            {COMPLICATION_LABELS[key] || key}
+                          </span>
+                        </label>
+                      ))}
+                      <label className={`flex items-center gap-3 p-2 rounded-xl group/item cursor-pointer border transition-all ${
+                        comphistoryNone ? 'bg-indigo-50 border-indigo-100 shadow-sm' : 'border-transparent hover:bg-white hover:shadow-sm'
+                      }`}>
+                        <div className="relative flex items-center">
+                          <input 
+                            type="checkbox" 
+                            className="peer sr-only"
+                            checked={comphistoryNone}
+                            onChange={toggleComphistoryNone}
+                          />
+                          <div className={`w-5 h-5 border-2 rounded-lg transition-all ${
+                            comphistoryNone ? 'bg-indigo-600 border-indigo-600' : 'border-slate-400 group-hover/item:border-indigo-200'
+                          }`}></div>
+                          <Check size={12} className="absolute left-1 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
+                        </div>
+                        <span className={`text-[11px] font-black uppercase tracking-tight transition-colors ${
+                          comphistoryNone ? 'text-indigo-900' : 'text-slate-600 group-hover/item:text-slate-900'
+                        }`}>
+                          None of the above
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Contraindications */}
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest mb-1 flex items-center gap-2">
+                        <AlertTriangle size={14} className="text-rose-500" />
+                        Contraindications
+                      </h3>
+                      <p className="text-[10px] text-slate-400 font-bold leading-tight uppercase tracking-tighter">Safety exclusion factors</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      {Object.keys(INITIAL_CONTRAINDICATIONS).map((key) => (
+                        <label key={key} className="flex items-center gap-3 p-2 rounded-xl group/item cursor-pointer border border-transparent hover:bg-white hover:shadow-sm transition-all">
+                          <div className="relative flex items-center">
+                            <input 
+                              type="checkbox" 
+                              className="peer sr-only"
+                              checked={contraindications[key as keyof Contraindications]}
+                              onChange={() => toggleContraindication(key as keyof Contraindications)}
+                            />
+                            <div className="w-5 h-5 border-2 border-slate-400 rounded-lg peer-checked:bg-rose-500 peer-checked:border-rose-500 transition-all group-hover/item:border-rose-200"></div>
+                            <AlertTriangle size={12} className="absolute left-1 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
+                          </div>
+                          <span className="text-[11px] font-bold text-slate-600 group-hover/item:text-slate-900 transition-colors uppercase tracking-tight">
+                            {CONTRAINDICATION_LABELS[key] || key}
+                          </span>
+                        </label>
+                      ))}
+                      <label className={`flex items-center gap-3 p-2 rounded-xl group/item cursor-pointer border transition-all ${
+                        contraNone ? 'bg-emerald-50 border-emerald-100 shadow-sm' : 'border-transparent hover:bg-white hover:shadow-sm'
+                      }`}>
+                        <div className="relative flex items-center">
+                          <input 
+                            type="checkbox" 
+                            className="peer sr-only"
+                            checked={contraNone}
+                            onChange={toggleContraNone}
+                          />
+                          <div className={`w-5 h-5 border-2 rounded-lg transition-all ${
+                            contraNone ? 'bg-emerald-600 border-emerald-600' : 'border-slate-400 group-hover/item:border-emerald-200'
+                          }`}></div>
+                          <ShieldCheck size={12} className="absolute left-1 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
+                        </div>
+                        <span className={`text-[11px] font-black uppercase tracking-tight transition-colors ${
+                          contraNone ? 'text-emerald-900' : 'text-slate-600 group-hover/item:text-slate-900'
+                        }`}>
+                          None of the above
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+          {/* Section 4: Interactions Check */}
+          <section className="glass-card rounded-[32px] overflow-hidden border-2 border-slate-100 shadow-xl shadow-slate-100/50">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-lg shadow-emerald-100">
+                  <span className="font-black text-lg">4</span>
+                </div>
+                <div>
+                  <h2 className="font-black text-slate-800 tracking-tight text-lg uppercase">Interactions Check</h2>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Pharmacological Safety</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={resetInteractions}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                >
+                  <RotateCcw size={12} />
+                  <span>Reset Section</span>
+                </button>
+              </div>
+            </div>
+            <div className="p-6 space-y-6 bg-white/40">
+              <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                Identify key medications that may involve clinical interactions with GLP-1RA therapy [4].
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {INTERACTION_MEDICATIONS.map((med) => (
+                  <label 
+                    key={med.id} 
+                    className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer border transition-all hover:shadow-md ${
+                      patient.currentMedications.includes(med.id) 
+                      ? 'bg-emerald-50 border-emerald-200' 
+                      : 'bg-white border-slate-200 hover:border-emerald-100 shadow-sm'
+                    }`}
+                  >
+                    <div className="relative flex items-center">
+                      <input 
+                        type="checkbox" 
+                        className="peer sr-only"
+                        checked={patient.currentMedications.includes(med.id)}
+                        onChange={() => toggleMedication(med.id)}
+                      />
+                      <div className={`w-5 h-5 border-2 rounded-lg transition-all ${
+                        patient.currentMedications.includes(med.id)
+                        ? 'bg-emerald-600 border-emerald-600'
+                        : 'border-slate-300'
+                      }`}></div>
+                      <Check size={12} className={`absolute left-1 text-white transition-opacity ${
+                        patient.currentMedications.includes(med.id) ? 'opacity-100' : 'opacity-0'
+                      }`} />
+                    </div>
+                    <span className="text-xs font-bold text-slate-700 tracking-tight leading-none">{med.label}</span>
+                  </label>
+                ))}
+                <label 
+                  className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer border transition-all hover:shadow-md ${
+                    medsNone 
+                    ? 'bg-indigo-50 border-indigo-200' 
+                    : 'bg-white border-slate-200 hover:border-indigo-100 shadow-sm'
+                  }`}
+                >
+                  <div className="relative flex items-center">
+                    <input 
+                      type="checkbox" 
+                      className="peer sr-only"
+                      checked={medsNone}
+                      onChange={toggleMedsNone}
+                    />
+                    <div className={`w-5 h-5 border-2 rounded-lg transition-all ${
+                      medsNone
+                      ? 'bg-indigo-600 border-indigo-600'
+                      : 'border-slate-300'
+                    }`}></div>
+                    <Check size={12} className={`absolute left-1 text-white transition-opacity ${
+                      medsNone ? 'opacity-100' : 'opacity-0'
+                    }`} />
+                  </div>
+                  <span className="text-xs font-black text-slate-700 tracking-widest uppercase leading-none italic">None of the above</span>
+                </label>
               </div>
             </div>
           </section>
@@ -628,29 +1084,88 @@ export default function App() {
         </div>
 
         {/* Right Column: Results */}
-        <div className="lg:col-span-5 space-y-6">
-          <section className="glass-card rounded-[40px] overflow-hidden sticky top-24 shadow-2xl shadow-indigo-100/50">
-            <div className="p-6 border-b border-slate-100 bg-slate-900 border-none">
+        <div className="lg:col-span-5 relative">
+          <AnimatePresence>
+            {isCalculating && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-50 bg-white/40 backdrop-blur-[2px] rounded-[40px] flex items-center justify-center pointer-events-none"
+              >
+                <div className="bg-white px-6 py-4 rounded-3xl shadow-2xl border border-slate-100 flex items-center gap-4">
+                  <Loader2 className="animate-spin text-indigo-600" size={24} />
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-600">Re-evaluating Clinical Eligibility...</span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="space-y-6">
+          <section className="glass-card rounded-[40px] overflow-hidden sticky top-24 shadow-2xl shadow-slate-200/50 border border-slate-200">
+            <div className="p-6 bg-slate-900">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
-                    <ClipboardCheck size={20} />
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-500/20">
+                    <ClipboardCheck size={24} />
                   </div>
                   <div>
-                    <h2 className="font-extrabold text-white tracking-tight">Clinical Recommendation</h2>
-                    <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-indigo-400">Analysis Result</p>
+                    <h2 className="text-lg font-black text-white tracking-tight leading-none">Assessment Summary</h2>
+                    <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-indigo-400 mt-1">Real-time Clinical Guide</p>
                   </div>
                 </div>
-                <div className="px-3 py-1.5 bg-white/10 rounded-full text-[10px] font-black text-white/50 uppercase tracking-widest border border-white/10">v1.2</div>
               </div>
             </div>
 
-            <div className="p-6 space-y-6 bg-white">
+            <div className="p-6 space-y-8 bg-white">
+              {/* Quick Input Summary */}
+              {(patient.weight > 0 || patient.age > 0) && (
+                <div className="grid grid-cols-2 gap-4 pb-6 border-b border-slate-100">
+                  <div className="space-y-1">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Calculated BMI</p>
+                    <p className={`text-xl font-black ${patient.bmi >= 30 ? 'text-amber-600' : 'text-indigo-600'}`}>
+                      {patient.bmi ? patient.bmi.toFixed(1) : '—'} <span className="text-[10px] text-slate-400">kg/m²</span>
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Patient Age</p>
+                    <p className="text-xl font-black text-slate-800">
+                      {patient.age > 0 ? patient.age : '—'} <span className="text-[10px] text-slate-400">yrs</span>
+                    </p>
+                  </div>
+                </div>
+              )}
               {/* Eligibility Status */}
               <div className="space-y-3">
                 <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.15em] mb-2">Eligibility Status</h3>
                 <AnimatePresence mode="wait">
-                  {assessment.isEligible ? (
+                  {assessment.safetyState === 'incomplete' ? (
+                    <motion.div 
+                      key="incomplete"
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="p-6 bg-slate-50 border border-slate-200 rounded-3xl flex items-start gap-4 shadow-sm"
+                    >
+                      <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 shrink-0 shadow-lg shadow-indigo-50">
+                        <Clock size={24} />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-black text-indigo-900 leading-tight tracking-tight">Assessment Incomplete</p>
+                        <p className="text-xs text-indigo-700/80 mt-1 font-medium leading-relaxed italic">
+                          Please complete the following required sections to finalize the clinical eligibility calculation:
+                        </p>
+                        <ul className="mt-3 space-y-1.5">
+                          {assessment.missingSections.map((section, idx) => (
+                            <li key={idx} className="flex items-center gap-2 text-[10px] font-bold text-red-600 bg-red-50/50 px-2 py-1 rounded-lg border border-red-100/50">
+                              <AlertCircle size={10} />
+                              {section}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </motion.div>
+                  ) : assessment.safetyState === 'eligible' ? (
                     <motion.div 
                       key="eligible"
                       initial={{ opacity: 0, scale: 0.95 }}
@@ -663,6 +1178,21 @@ export default function App() {
                       <div>
                         <p className="font-black text-emerald-900 leading-tight">Patient is Eligible</p>
                         <p className="text-xs text-emerald-700/80 mt-1 font-medium leading-relaxed italic">Meets evidence-based criteria for GLP-1 RA therapy adjunct to lifestyle intervention.</p>
+                      </div>
+                    </motion.div>
+                  ) : assessment.safetyState === 'caution' ? (
+                    <motion.div 
+                      key="caution"
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="p-6 bg-amber-50 border border-amber-200 rounded-3xl flex items-start gap-4 shadow-sm"
+                    >
+                      <div className="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-amber-200">
+                        <Scale size={24} />
+                      </div>
+                      <div>
+                        <p className="font-black text-amber-900 leading-tight">Eligible with Caution</p>
+                        <p className="text-xs text-amber-700/80 mt-1 font-medium leading-relaxed italic">Patient meets weight criteria, but significant clinical or pharmacological cautions are present. Review interaction details below before prescribing.</p>
                       </div>
                     </motion.div>
                   ) : (
@@ -721,43 +1251,69 @@ export default function App() {
                 </div>
               )}
 
-              {/* Drug Interactions */}
-              {patient.currentMedications.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.15em] mb-2">Drug Interactions Analysis</h3>
-                  {interactions.length > 0 ? (
-                    <div className="space-y-3">
-                      {interactions.map((inter, i) => (
-                        <div key={i} className={`p-4 rounded-[28px] border-2 shadow-sm ${
-                          inter.severity === 'high' ? 'bg-rose-50 border-rose-100 text-rose-900' :
-                          inter.severity === 'moderate' ? 'bg-amber-50 border-amber-100 text-amber-900' :
-                          'bg-indigo-50 border-indigo-100 text-indigo-900'
-                        }`}>
-                          <div className="flex items-center gap-2 mb-2">
-                            <AlertTriangle size={18} className={
-                              inter.severity === 'high' ? 'text-rose-600' :
-                              inter.severity === 'moderate' ? 'text-amber-600' :
-                              'text-indigo-600'
-                            } />
-                            <span className="font-extrabold text-xs uppercase tracking-tight">
-                              {inter.medication} Alert
-                            </span>
-                          </div>
-                          <p className="text-xs font-black mb-1.5 leading-tight">{inter.warning}</p>
-                          <div className="mt-2 pt-2 border-t border-black/5">
-                            <p className="text-[11px] font-medium leading-relaxed"><span className="font-black">Management:</span> {inter.management}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="p-5 bg-emerald-50/50 border border-emerald-100 rounded-3xl flex items-start gap-3 border-dashed">
-                      <ShieldCheck size={18} className="text-emerald-600 mt-0.5" />
-                      <p className="text-[11px] font-bold text-emerald-800 leading-relaxed">
-                        No known drug interactions identified for the entered medications.
+              {/* Overall Interaction Assessment */}
+              {assessment.interactionSummary && (
+                <div className="space-y-4">
+                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.15em] mb-2">Interaction Recommendation</h3>
+                  <div className={`p-5 rounded-[32px] border-2 ${
+                    assessment.interactionSummary.hasAbsolute ? 'bg-rose-50 border-rose-200 text-rose-900' :
+                    assessment.interactionSummary.hasRelative ? 'bg-amber-50 border-amber-200 text-amber-900' :
+                    'bg-indigo-50 border-indigo-200 text-indigo-900'
+                  }`}>
+                    <div className="flex items-center gap-3 mb-3">
+                      <Scale size={20} className={
+                        assessment.interactionSummary.hasAbsolute ? 'text-rose-600' :
+                        assessment.interactionSummary.hasRelative ? 'text-amber-600' :
+                        'text-indigo-600'
+                      } />
+                      <p className="font-black text-sm tracking-tight">
+                        {assessment.interactionSummary.hasAbsolute ? 'Absolute Contraindication Detected' :
+                         assessment.interactionSummary.hasRelative ? 'Relative Contraindication / Caution Recommended' :
+                         'Prescription with Monitoring Requirements'}
                       </p>
                     </div>
-                  )}
+                    <p className="text-[11px] font-medium leading-relaxed opacity-80">
+                      {assessment.interactionSummary.hasAbsolute ? 'One or more current medications are absolutely contraindicated with GLP-1RA therapy. Review patient profile and consider alternative weight management strategies.' :
+                       assessment.interactionSummary.hasRelative ? 'Clinical interactions identified that may require modification or cessation of current therapy before GLP-1RA initiation (e.g. redundancy or risk factors).' :
+                       'Therapy may be prescribed alongside current medications, provided the specific additional screening and monitoring requirements (outlined below) are followed.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Drug Interactions Individual List */}
+              {patient.currentMedications.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.15em] mb-2">Specific Interaction Details</h3>
+                  <div className="space-y-3">
+                    {interactions.map((inter, i) => (
+                      <div key={i} className={`p-4 rounded-[28px] border-2 shadow-sm ${
+                        inter.severity === 'absolute' ? 'bg-rose-50 border-rose-100 text-rose-900' :
+                        inter.severity === 'relative' ? 'bg-amber-50 border-amber-100 text-amber-900' :
+                        'bg-indigo-50 border-indigo-100 text-indigo-900'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertTriangle size={18} className={
+                            inter.severity === 'absolute' ? 'text-rose-600' :
+                            inter.severity === 'relative' ? 'text-amber-600' :
+                            'text-indigo-600'
+                          } />
+                          <span className="font-extrabold text-[10px] uppercase tracking-widest bg-white/50 px-2 py-0.5 rounded-lg border border-black/5">
+                            {inter.severity === 'absolute' ? 'Absolute Contraindication' :
+                             inter.severity === 'relative' ? 'Relative Contraindication' :
+                             'Monitoring Required'}
+                          </span>
+                        </div>
+                        <p className="text-xs font-black mb-1.5 leading-tight">{inter.medication}: {inter.warning}</p>
+                        
+                        <div className="mt-3 p-2.5 bg-white/60 rounded-xl border border-black/5">
+                          <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Recommendation</p>
+                          <p className="text-[11px] font-bold text-slate-800 leading-tight mb-2 underline decoration-indigo-200 underline-offset-2">{inter.recommendationLabel}</p>
+                          <p className="text-[11px] font-medium leading-relaxed text-slate-600"><span className="font-black text-slate-700">Management:</span> {inter.management}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -815,7 +1371,7 @@ export default function App() {
                     {[
                       "Monthly clinical review for dose tolerance",
                       "Monitor Blood Pressure & Resting Heart Rate (HR)",
-                      "Self-Monitoring of Blood Glucose (SMBG) if comorbid diabetes",
+                      "self-monitored blood glucose if comorbid diabetes",
                       "Assess for prolonged Gastrointestinal (GI) symptoms",
                       "Energy-reduced diet (approx. 2000–4000 kJ/day deficit)",
                       "Aerobic and resistance physical activity (150–300 mins/week)",
@@ -829,11 +1385,64 @@ export default function App() {
                   </div>
                 </div>
               )}
+
+              {/* Generate Clinical Note Button */}
+              {assessment.isComplete && (
+                <div className="pt-6 border-t border-slate-100">
+                  <button
+                    onClick={handleToggleNote}
+                    disabled={isGeneratingNote}
+                    className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-3xl transition-all duration-300 font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-200 group"
+                  >
+                    {isGeneratingNote ? (
+                      <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                      <BookOpen size={18} className="group-hover:scale-110 transition-transform" />
+                    )}
+                    <span>{isGeneratingNote ? 'Processing Clinical Data...' : showClinicalNote ? 'Hide Clinical Note' : 'Generate Clinical Note'}</span>
+                  </button>
+                  
+                  <AnimatePresence>
+                    {showClinicalNote && !isGeneratingNote && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-4 p-5 bg-slate-50 border border-slate-200 rounded-2xl relative">
+                          <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-200">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Clinical Case Note Preview</span>
+                            <button
+                              onClick={handleCopyNote}
+                              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                                copySuccess 
+                                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100' 
+                                : 'bg-white text-indigo-600 hover:bg-indigo-50 border border-slate-200 shadow-sm'
+                              }`}
+                            >
+                              {copySuccess ? <Check size={12} /> : <ClipboardCheck size={12} />}
+                              <span>{copySuccess ? 'Copied!' : 'Copy to Clipboard'}</span>
+                            </button>
+                          </div>
+                          <pre className="text-[10px] font-mono text-slate-700 leading-relaxed whitespace-pre-wrap font-medium">
+                            {generateClinicalNote()}
+                          </pre>
+                        </div>
+                        <p className="text-[9px] text-center text-slate-400 mt-3 font-bold uppercase tracking-widest px-4">
+                          Note: This summary is generated for documentation purposes only. ensure all details are verified before pasting into medical records.
+                        </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
             </div>
           </section>
         </div>
       </div>
-    </main>
+    </div>
+  </main>
 
       {/* Footer: Citations & Disclaimer */}
       <footer className="max-w-7xl mx-auto px-6 pb-12 pt-6">
@@ -863,7 +1472,7 @@ export default function App() {
                 <h3 className="font-extrabold uppercase tracking-widest text-sm">Clinical Warning</h3>
               </div>
               <p className="text-xs font-medium leading-relaxed text-indigo-100 italic">
-                This tool is intended for use by healthcare professionals as a decision support aid. It does not replace clinical judgment or official product information. Always verify dosing and contraindications with current professional guidelines and TGA-approved product materials.
+                This tool is intended for use by healthcare professionals as a decision support aid. It does not replace clinical judgment or official product information. Always verify dosing and contraindications with current professional guidelines and TGA-approved product materials. The drug interactions included in this app may not be an exhaustive list.
               </p>
               <div className="mt-6 pt-4 border-t border-white/20 flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-indigo-200">
                 <span>V1.2 Clinical Release</span>
