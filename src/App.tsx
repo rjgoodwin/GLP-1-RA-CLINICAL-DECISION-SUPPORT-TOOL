@@ -27,7 +27,8 @@ import {
   Clock,
   Loader2,
   ShieldAlert,
-  Zap
+  Zap,
+  XCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -1216,14 +1217,14 @@ export default function App() {
                       key="ineligible"
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      className="p-6 bg-slate-50 border border-slate-200 rounded-3xl flex items-start gap-4"
+                      className="p-6 bg-red-50 border border-red-200 rounded-3xl flex items-start gap-4 shadow-sm"
                     >
-                      <div className="w-12 h-12 bg-slate-400 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-slate-200">
-                        <Info size={24} />
+                      <div className="w-12 h-12 bg-red-500 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-red-200">
+                        <XCircle size={24} />
                       </div>
                       <div>
-                        <p className="font-black text-slate-900 leading-tight">Criteria Not Met</p>
-                        <p className="text-xs text-slate-600/80 mt-1 font-medium leading-relaxed italic mb-4">
+                        <p className="font-black text-red-900 leading-tight">Criteria Not Met</p>
+                        <p className="text-xs text-red-700/80 mt-1 font-medium leading-relaxed italic mb-4">
                           {assessment.hasContraindications 
                             ? "Medical contraindications identified. GLP-1 RA therapy is not appropriate." 
                             : assessment.isUnderage
@@ -1232,12 +1233,12 @@ export default function App() {
                         </p>
 
                         {assessment.missingFactors.length > 0 && (
-                          <div className="space-y-2 mt-4 pt-4 border-t border-slate-200/60">
-                            <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Requirements for Eligibility:</h4>
+                          <div className="space-y-2 mt-4 pt-4 border-t border-red-200/60">
+                            <h4 className="text-[9px] font-black text-red-400 uppercase tracking-widest">Requirements for Eligibility:</h4>
                             <ul className="space-y-1.5">
                               {assessment.missingFactors.map((f, i) => (
-                                <li key={i} className="flex items-start gap-2 text-[10px] font-bold text-slate-500 leading-tight">
-                                  <div className="w-1 h-1 rounded-full bg-slate-300 mt-1.5 shrink-0" />
+                                <li key={i} className="flex items-start gap-2 text-[10px] font-bold text-red-500 leading-tight">
+                                  <div className="w-1 h-1 rounded-full bg-red-300 mt-1.5 shrink-0" />
                                   {f}
                                 </li>
                               ))}
