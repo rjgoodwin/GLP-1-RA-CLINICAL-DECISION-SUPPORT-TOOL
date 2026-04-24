@@ -25,7 +25,9 @@ import {
   ShieldCheck,
   Check,
   Clock,
-  Loader2
+  Loader2,
+  ShieldAlert,
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -492,7 +494,8 @@ export default function App() {
       isComplete,
       missingSections,
       missingFactors,
-      interactionSummary
+      interactionSummary,
+      isHighMetabolicRisk: patient.population === 'asian_indigenous'
     };
   }, [patient, complications, contraindications, interactions, comphistoryNone, contraNone, medsNone]);
 
@@ -652,7 +655,7 @@ export default function App() {
               <div>
                 <h3 className="text-sm font-black text-amber-900 uppercase tracking-tight">Important Clinical Guidance</h3>
                 <p className="text-xs text-amber-800/80 font-medium leading-relaxed mt-1">
-                  All 4 sections below must be completed before patient eligibility can be determined. Please ensure that each field is marked either with positive findings or by selecting "None of the above" where applicable.
+                  All 4 sections below must be completed before patient eligibility can be determined. Please ensure that each field is marked either with positive findings or by selecting "None of the above" where applicable. Additionally, please ensure that the patient has provided informed consent to the use of this calculator and the entry of their clinical data.
                 </p>
               </div>
             </motion.div>
@@ -1247,6 +1250,44 @@ export default function App() {
                         {r}
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* High Metabolic Risk Acknowledgement */}
+              {assessment.isComplete && assessment.isHighMetabolicRisk && (
+                <div className="space-y-4">
+                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.15em] mb-2 font-sans">High Metabolic Risk Consideration</h3>
+                  <div className="p-5 bg-orange-50 border-2 border-orange-100/50 rounded-[32px] relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <ShieldAlert size={64} className="text-orange-600" />
+                    </div>
+                    <div className="relative z-10">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 bg-orange-500 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-orange-200">
+                          <Zap size={20} />
+                        </div>
+                        <p className="font-black text-sm text-orange-950 tracking-tight leading-tight">Patient in High Metabolic Risk Category</p>
+                      </div>
+                      <p className="text-[11px] font-bold text-orange-900/80 leading-relaxed mb-4">
+                        This patient belongs to a population group (Asian or Indigenous) known to have a significantly higher risk of cardiometabolic complications at lower anthropometric levels compared to the general population.
+                      </p>
+                      
+                      <div className="space-y-3 p-3.5 bg-white/60 rounded-2xl border border-orange-200/40">
+                        <p className="text-[10px] font-black uppercase text-orange-600/60 tracking-widest mb-1">Clinical Importance for Prescribers:</p>
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-bold text-orange-800 leading-relaxed">
+                            <span className="font-black">Early Intervention:</span> Patients should be considered for GLP-1 RA therapy at lower BMI (≥27.5) and Waist Circumference thresholds, as health risks escalate faster in these groups.
+                          </p>
+                          <p className="text-[10px] font-bold text-orange-800 leading-relaxed">
+                            <span className="font-black">Metabolic Sensitivity:</span> These individuals may experience metabolic benefits even with modest weight loss, making them strong candidates for early pharmacological adjuncts to lifestyle changes.
+                          </p>
+                          <p className="text-[10px] font-bold text-orange-800 leading-relaxed">
+                            <span className="font-black">Co-morbidity Screening:</span> Heightened vigilance is required for screening and managing comorbid Type 2 Diabetes and Cardiovascular disease, which often manifest earlier.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
