@@ -242,6 +242,19 @@ export default function App() {
   const [copySuccess, setCopySuccess] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
 
+  const handleReset = () => {
+    setPatient(INITIAL_PATIENT);
+    setComplications(INITIAL_COMPLICATIONS);
+    setContraindications(INITIAL_CONTRAINDICATIONS);
+    setComphistoryNone(false);
+    setContraNone(false);
+    setMedsNone(false);
+    setShowClinicalNote(false);
+    setCopySuccess(false);
+    // Scroll to top for a fresh start
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   // Simulate calculation delay for UX
   React.useEffect(() => {
     if (patient.weight > 0 || patient.height > 0) {
@@ -1484,6 +1497,17 @@ export default function App() {
       </div>
     </div>
   </main>
+
+      {/* Reset Button */}
+      <div className="max-w-7xl mx-auto px-6 mb-8 text-center">
+        <button
+          onClick={handleReset}
+          className="inline-flex items-center gap-3 px-8 py-5 bg-white hover:bg-slate-50 text-slate-800 rounded-[32px] transition-all duration-300 font-black uppercase tracking-widest text-xs shadow-xl shadow-slate-200 border border-slate-200 group"
+        >
+          <RotateCcw size={18} className="text-indigo-600 group-hover:rotate-[-120deg] transition-transform duration-500" />
+          <span>Reset All Sections</span>
+        </button>
+      </div>
 
       {/* Footer: Citations & Disclaimer */}
       <footer className="max-w-7xl mx-auto px-6 pb-12 pt-6">
