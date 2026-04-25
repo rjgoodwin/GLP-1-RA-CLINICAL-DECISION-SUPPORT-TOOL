@@ -1697,7 +1697,7 @@ export default function App() {
                 <h3 className="font-extrabold uppercase tracking-widest text-xs">Medical Disclaimer</h3>
               </div>
               <p className="text-[10px] font-medium leading-normal text-indigo-50/90 italic">
-                Decision support only. Not a replacement for clinical judgment. Always verify dosing and contraindications with TGA product materials.
+                Decision support only. Not a replacement for clinical judgment. Always verify dosing, contraindications, drug interactions and side effects with TGA product materials.
               </p>
               <div className="mt-4 pt-3 border-t border-white/20 flex items-center justify-between text-[8px] font-black uppercase tracking-widest text-indigo-200">
                 <span>V1.2 Release</span>
