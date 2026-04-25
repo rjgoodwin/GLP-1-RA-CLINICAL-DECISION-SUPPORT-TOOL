@@ -162,24 +162,24 @@ const INTERACTION_MEDICATIONS = [
     label: 'ACE Inhibitors (ACEIs)',
     severity: 'monitoring' as const,
     warning: 'Risk of additive hypotension or orthostasis as weight loss reduces baseline blood pressure.',
-    management: 'Prescribe with monitoring. Monitor BP regularly. Consider dose reduction if blood pressure falls below target.',
-    recommendationLabel: 'Prescribe with monitoring (BP)'
+    management: 'Prescribe with monitoring. Monitor blood pressure regularly. Consider dose reduction if blood pressure falls below target.',
+    recommendationLabel: 'Prescribe with monitoring (blood pressure)'
   },
   {
     id: 'arbs',
     label: 'Angiotensin II Receptor Blockers (ARBs)',
     severity: 'monitoring' as const,
     warning: 'Risk of additive hypotension or orthostasis, especially with concurrent weight loss.',
-    management: 'Prescribe with monitoring. Monitor BP regularly. Review dose if blood pressure is consistently below target.',
-    recommendationLabel: 'Prescribe with monitoring (BP)'
+    management: 'Prescribe with monitoring. Monitor blood pressure regularly. Review dose if blood pressure is consistently below target.',
+    recommendationLabel: 'Prescribe with monitoring (blood pressure)'
   },
   {
     id: 'diuretics',
     label: 'Diuretics',
     severity: 'monitoring' as const,
     warning: 'Risk of hypotension, orthostasis, and potential dehydration/electrolyte imbalance.',
-    management: 'Prescribe with monitoring. Monitor BP and hydration status. Consider dose reduction or cessation if blood pressure falls below target.',
-    recommendationLabel: 'Prescribe with monitoring (BP & Hydration)'
+    management: 'Prescribe with monitoring. Monitor blood pressure and hydration status. Consider dose reduction or cessation if blood pressure falls below target.',
+    recommendationLabel: 'Prescribe with monitoring (blood pressure & Hydration)'
   },
   {
     id: 'levothyroxine',
@@ -232,6 +232,7 @@ const CONTRAINDICATION_LABELS: Record<string, string> = {
 };
 
 export default function App() {
+  const [hasConsent, setHasConsent] = useState(false);
   const [patient, setPatient] = useState<PatientData>(INITIAL_PATIENT);
   const [comphistoryNone, setComphistoryNone] = useState(false);
   const [contraNone, setContraNone] = useState(false);
@@ -242,8 +243,11 @@ export default function App() {
   const [isGeneratingNote, setIsGeneratingNote] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [ageError, setAgeError] = useState(false);
+  const [selectedMedChoices, setSelectedMedChoices] = useState<string[]>([]);
 
   const handleReset = () => {
+    setHasConsent(false);
     setPatient(INITIAL_PATIENT);
     setComplications(INITIAL_COMPLICATIONS);
     setContraindications(INITIAL_CONTRAINDICATIONS);
@@ -252,6 +256,8 @@ export default function App() {
     setMedsNone(false);
     setShowClinicalNote(false);
     setCopySuccess(false);
+    setAgeError(false);
+    setSelectedMedChoices([]);
     // Scroll to top for a fresh start
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -516,7 +522,6 @@ export default function App() {
   const medications: MedicationOption[] = [
     {
       name: 'Semaglutide',
-      brand: 'Wegovy®',
       startingDose: '0.25 mg once weekly',
       escalation: 'Increase dose every 4 weeks (0.25 mg → 0.5 mg → 1.0 mg → 1.7 mg → 2.4 mg) subject to tolerance [2, 3]',
       maxDose: '2.4 mg once weekly',
@@ -525,7 +530,6 @@ export default function App() {
     },
     {
       name: 'Tirzepatide',
-      brand: 'Mounjaro®',
       startingDose: '2.5 mg once weekly',
       escalation: 'Increase dose to 5 mg weekly after 4 weeks. Further increases can be made in 2.5 mg increments every 4 weeks [2, 3]',
       maxDose: '15 mg once weekly',
@@ -534,19 +538,53 @@ export default function App() {
     },
     {
       name: 'Liraglutide',
-      brand: 'Saxenda®',
       startingDose: '0.6 mg daily',
       escalation: 'Increase by 0.6 mg weekly until maximum dose is reached to minimize GI side effects [1, 2]',
       maxDose: '3.0 mg daily',
       contraindications: ['Pregnancy', 'Medullary Thyroid Cancer', 'MEN2 Syndrome', 'Hypersensitivity to GLP-1 RA'],
       sideEffects: ['Nausea', 'Vomiting', 'Diarrhoea', 'Constipation', 'Gallstones'],
+      escalation: 'Increase by 0.6 mg weekly until maximum dose is reached to minimize gastrointestinal side effects [1, 2]',
     }
   ];
+
+  const calorieTarget = useMemo(() => {
+    if (!patient.weight || !patient.height || !patient.age || !patient.gender) return null;
+    
+    // Mifflin-St Jeor Equation
+    // Height in cm, Weight in kg, Age in years
+    let bmr = (10 * patient.weight) + (6.25 * patient.height) - (5 * patient.age);
+    if (patient.gender === 'male') {
+      bmr += 5;
+    } else {
+      bmr -= 161;
+    }
+    
+    // Total Daily Energy Expenditure (Sedentary factor 1.2)
+    const tdee = bmr * 1.2;
+    
+    // Target deficit of 2000-4000 kJ (approx 500-1000 kcal)
+    // We'll provide a range for the user
+    const targetMin = Math.round(tdee - 800);
+    const targetMax = Math.round(tdee - 500);
+    
+    // Ensure nutritional adequacy (min 1200 kcal/day for women, 1500 kcal/day for men)
+    const floor = patient.gender === 'male' ? 1500 : 1200;
+    
+    return {
+      min: Math.max(targetMin, floor),
+      max: Math.max(targetMax, floor)
+    };
+  }, [patient.weight, patient.height, patient.age, patient.gender]);
 
   const generateClinicalNote = () => {
     const date = new Date().toLocaleDateString('en-AU');
     const time = new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
     
+    // Filter medications based on user selection
+    const visibleMedications = selectedMedChoices.length > 0
+      ? medications.filter(m => selectedMedChoices.includes(m.name))
+      : medications;
+
     let note = `CLINICAL NOTE: Weight Management Assessment (GLP-1 RA Eligibility)\n`;
     note += `Date: ${date} ${time}\n`;
     note += `--------------------------------------------------\n\n`;
@@ -596,7 +634,7 @@ export default function App() {
     note += `\nRECOMMENDATIONS:\n`;
     if (assessment.isEligible) {
       note += `- Eligible for GLP-1 RA pharmacotherapy as an adjunct to lifestyle intervention.\n`;
-      note += `- Suggested medications per algorithm: ${medications.map(m => m.name).join(', ')}.\n`;
+      note += `- Suggested medications per algorithm: ${visibleMedications.map(m => m.name).join(', ')}.\n`;
       note += `- Follow standard escalation schedule and monthly clinical review.\n`;
       note += `- Emphasise lifestyle modification including calorie deficit and 150-300 mins exercise/week.\n`;
     } else {
@@ -642,7 +680,7 @@ export default function App() {
             <div>
               <h1 className="text-[10px] md:text-xl font-extrabold tracking-tight text-slate-900 leading-none py-1">
                 <span className="block uppercase">GLUCAGON-LIKE RECEPTOR-1 AGONISTS (GLP-1RAs)</span>
-                <span className="block text-indigo-600 mt-1 uppercase text-[8px] md:text-sm font-black">Clinical Decision Support Tool</span>
+                <span className="block text-indigo-600 mt-1 uppercase text-[8px] md:text-sm font-black">Safe Prescribing Aid for GPs</span>
               </h1>
             </div>
           </div>
@@ -655,66 +693,116 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Left Column: Inputs */}
-          <div className="lg:col-span-7 space-y-6">
+      <main className="max-w-4xl mx-auto px-4 py-3">
+        <div className="space-y-4">
+          {/* Main Inputs */}
+          <div className="space-y-4">
             <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="p-6 bg-amber-50 border-2 border-amber-200 rounded-[32px] shadow-sm flex items-start gap-4 mb-2"
+              className="p-3 bg-amber-50 border-2 border-amber-200 rounded-[24px] shadow-sm flex items-start gap-3 mb-0.5"
             >
               <AlertCircle className="text-amber-600 shrink-0 mt-0.5" size={20} />
-              <div>
-                <h3 className="text-sm font-black text-amber-900 uppercase tracking-tight">Important Clinical Guidance</h3>
-                <p className="text-xs text-amber-800/80 font-medium leading-relaxed mt-1">
-                  All 4 sections below must be completed before patient eligibility can be determined. Please ensure that each field is marked either with positive findings or by selecting "None of the above" where applicable. Additionally, please ensure that the patient has provided informed consent to the use of this calculator and the entry of their clinical data.
+              <div className="flex-1">
+                <h3 className="text-[11px] font-black text-amber-900 uppercase tracking-tight">Important Clinical Guidance</h3>
+                <p className="text-[10px] text-amber-800/80 font-medium leading-normal mt-0.5 italic">
+                  All 4 sections below must be completed before patient eligibility can be determined [1].
                 </p>
+                
+                <div className="mt-2.5 p-2 bg-white/60 border border-amber-200 rounded-xl flex items-center gap-2">
+                  <input 
+                    type="checkbox" 
+                    id="consent-check"
+                    checked={hasConsent}
+                    onChange={(e) => setHasConsent(e.target.checked)}
+                    className="w-4 h-4 rounded-md border-amber-300 text-indigo-600 focus:ring-indigo-500 transition-all cursor-pointer"
+                  />
+                  <label htmlFor="consent-check" className="text-[10px] font-bold text-amber-900 cursor-pointer select-none">
+                    patient consent obtained
+                  </label>
+                </div>
+
+                <AnimatePresence>
+                  {hasConsent && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="mt-4 pt-4 border-t border-amber-200/50"
+                    >
+                      <h4 className="text-[10px] font-black text-amber-900 uppercase tracking-widest mb-2">Which GLP-1RA(s) are you considering for this patient?</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {['Semaglutide', 'Tirzepatide', 'Liraglutide'].map((med) => (
+                          <label 
+                            key={med}
+                            className={`flex items-center gap-2 p-2 rounded-xl cursor-pointer border transition-all ${
+                              selectedMedChoices.includes(med)
+                                ? 'bg-indigo-600 border-indigo-600 shadow-md ring-2 ring-indigo-200'
+                                : 'bg-white border-amber-200 hover:border-indigo-300'
+                            }`}
+                          >
+                            <input 
+                              type="checkbox"
+                              className="sr-only"
+                              checked={selectedMedChoices.includes(med)}
+                              onChange={() => {
+                                setSelectedMedChoices(prev => 
+                                  prev.includes(med) ? prev.filter(m => m !== med) : [...prev, med]
+                                );
+                              }}
+                            />
+                            <div className={`w-3.5 h-3.5 rounded flex items-center justify-center transition-colors ${
+                              selectedMedChoices.includes(med) ? 'bg-white' : 'bg-slate-100 border border-slate-200'
+                            }`}>
+                              {selectedMedChoices.includes(med) && <Check size={10} className="text-indigo-600" />}
+                            </div>
+                            <span className={`text-[10px] font-bold uppercase tracking-tight ${
+                              selectedMedChoices.includes(med) ? 'text-white' : 'text-slate-600'
+                            }`}>
+                              {med}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.6 }}
-            >
+            <div className={`transition-all duration-500 ${hasConsent && selectedMedChoices.length > 0 ? 'opacity-100' : 'opacity-40 pointer-events-none grayscale-[0.5]'}`}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.6 }}
+              >
           
           {/* Section 1: Anthropometry Check */}
-          <section className="glass-card rounded-[32px] overflow-hidden border-2 border-slate-100 shadow-xl shadow-slate-100/50">
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
-                  <span className="font-black text-lg">1</span>
+          <section className="glass-card rounded-[24px] overflow-hidden border-2 border-slate-100 shadow-xl shadow-slate-100/50">
+            <div className="p-2.5 border-b border-slate-100 flex items-center justify-between bg-white">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+                  <span className="font-black text-sm">1</span>
                 </div>
                     <div>
-                      <h2 className="font-black text-slate-800 tracking-tight text-lg uppercase">Anthropometry Check</h2>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Weight, Height & BMI Measurements</p>
+                      <h2 className="font-black text-slate-800 tracking-tight text-base uppercase leading-none">Anthropometry Check</h2>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">patient measurements</p>
                     </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <button 
                   onClick={resetAnthropometry}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                  className="flex items-center gap-1.5 px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all"
                 >
-                  <RotateCcw size={12} />
-                  <span>Reset Section</span>
+                  <RotateCcw size={10} />
+                  <span>Reset</span>
                 </button>
               </div>
             </div>
-            <div className="p-6 space-y-6 bg-white/40">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                <div className="space-y-3">
-                  <label className="label-upper">Weight (kg)</label>
-                  <input 
-                    type="number" 
-                    className={`input-field text-lg font-bold transition-colors ${patient.weight > 0 ? 'border-indigo-600 text-indigo-600' : 'border-slate-300'}`}
-                    placeholder="0.0"
-                    value={patient.weight || ''}
-                    onChange={(e) => handlePatientChange('weight', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-3">
+            <div className="p-3 space-y-3 bg-white/40">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
+                <div className="space-y-1.5">
                   <label className="label-upper">Height (cm)</label>
                   <input 
                     type="number" 
@@ -724,7 +812,27 @@ export default function App() {
                     onChange={(e) => handlePatientChange('height', parseFloat(e.target.value) || 0)}
                   />
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label className="label-upper">Weight (kg)</label>
+                  <input 
+                    type="number" 
+                    className={`input-field text-lg font-bold transition-colors ${patient.weight > 0 ? 'border-indigo-600 text-indigo-600' : 'border-slate-300'}`}
+                    placeholder="0.0"
+                    value={patient.weight || ''}
+                    onChange={(e) => handlePatientChange('weight', parseFloat(e.target.value) || 0)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="label-upper">Waist Circumference (cm)</label>
+                  <input 
+                    type="number" 
+                    className={`input-field text-lg font-bold transition-colors ${patient.waistCircumference > 0 ? 'border-indigo-600 text-indigo-600' : 'border-slate-300'}`}
+                    placeholder="0"
+                    value={patient.waistCircumference || ''}
+                    onChange={(e) => handlePatientChange('waistCircumference', parseInt(e.target.value) || 0)}
+                  />
+                </div>
+                <div className="space-y-1.5">
                   <label className="label-upper">BMI (kg/m²)</label>
                   <div className={`input-field flex items-center justify-between transition-all ${
                     patient.bmi >= 30 ? 'bg-amber-50 border-amber-200' : 
@@ -740,16 +848,6 @@ export default function App() {
                     </span>
                   </div>
                 </div>
-                <div className="space-y-3">
-                  <label className="label-upper">Waist Circumference (cm)</label>
-                  <input 
-                    type="number" 
-                    className={`input-field text-lg font-bold transition-colors ${patient.waistCircumference > 0 ? 'border-indigo-600 text-indigo-600' : 'border-slate-300'}`}
-                    placeholder="0"
-                    value={patient.waistCircumference || ''}
-                    onChange={(e) => handlePatientChange('waistCircumference', parseInt(e.target.value) || 0)}
-                  />
-                </div>
               </div>
             </div>
           </section>
@@ -761,48 +859,77 @@ export default function App() {
               transition={{ duration: 0.5, delay: 0.1 }}
             >
               {/* Section 2: Patient Context */}
-              <section className="glass-card rounded-[32px] overflow-hidden border-2 border-slate-100 shadow-xl shadow-slate-100/50">
-                <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
-                      <span className="font-black text-lg">2</span>
+              <section className="glass-card rounded-[24px] overflow-hidden border-2 border-slate-100 shadow-xl shadow-slate-100/50">
+                <div className="p-2.5 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+                      <span className="font-black text-sm">2</span>
                     </div>
                     <div>
-                      <h2 className="font-black text-slate-800 tracking-tight text-lg uppercase">Patient Context</h2>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Demographics & Population</p>
+                      <h2 className="font-black text-slate-800 tracking-tight text-base uppercase leading-none">Patient Context</h2>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Demographics & Population</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <button 
                       onClick={resetPatientContext}
-                      className="flex items-center gap-2 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                      className="flex items-center gap-1.5 px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all"
                     >
-                      <RotateCcw size={12} />
-                      <span>Reset Section</span>
+                      <RotateCcw size={10} />
+                      <span>Reset</span>
                     </button>
                   </div>
                 </div>
-                <div className="p-6 space-y-6 bg-white/40">
-                  <div className="p-4 bg-indigo-50/50 border border-indigo-100/50 rounded-2xl flex items-start gap-4">
-                    <Lock size={16} className="text-indigo-600 mt-0.5 shrink-0" />
-                    <p className="text-xs text-indigo-900/70 leading-relaxed font-medium">
-                      <span className="font-bold text-indigo-900">Privacy Notice:</span> To maintain patient confidentiality and comply with Australian Privacy Principles, do not enter any patient-identifying information [5].
+                <div className="p-3 space-y-3 bg-white/40">
+                  <div className="p-2.5 bg-indigo-50/50 border border-indigo-100/50 rounded-xl flex items-start gap-2.5">
+                    <Lock size={12} className="text-indigo-600 mt-0.5 shrink-0" />
+                    <p className="text-[10px] text-indigo-900/70 leading-normal font-medium">
+                      <span className="font-bold text-indigo-900">Privacy Notice:</span> To maintain patient confidentiality, do not enter any patient-identifying information [5].
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
                       <label className="label-upper">Age (Adults 18+)</label>
                       <input 
                         type="number" 
-                        className={`input-field font-bold transition-all ${patient.age > 0 ? 'border-indigo-600 text-indigo-600' : 'border-slate-300'}`}
-                        placeholder="18"
+                        className={`input-field font-bold transition-all ${patient.age > 0 ? 'border-indigo-600 text-indigo-600' : 'border-slate-300'} ${ageError ? 'ring-2 ring-red-500 border-red-500' : ''}`}
+                        placeholder="__"
+                        min="18"
                         value={patient.age || ''}
-                        onChange={(e) => handlePatientChange('age', parseInt(e.target.value) || 0)}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          // Clear error if it becomes valid while typing
+                          if (val >= 18 || val === 0) {
+                            setAgeError(false);
+                          }
+                          
+                          if (val === 0 || val >= 18 || (val > 0 && val < 10)) {
+                            handlePatientChange('age', val);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          if (val > 0 && val < 18) {
+                            handlePatientChange('age', 0);
+                            setAgeError(true);
+                          } else {
+                            setAgeError(false);
+                          }
+                        }}
                       />
+                      {ageError && (
+                        <motion.p 
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="text-[9px] font-black text-red-600 uppercase tracking-widest mt-1 bg-red-50 px-2 py-1 rounded-md border border-red-100 inline-block"
+                        >
+                          Age must be 18+
+                        </motion.p>
+                      )}
                     </div>
                     
-                    <div className="space-y-3">
+                    <div className="space-y-1.5">
                       <label className="label-upper">Sex Assigned at Birth</label>
                       <div className="grid grid-cols-2 gap-2">
                         {(['female', 'male'] as const).map((g) => (
@@ -884,32 +1011,32 @@ export default function App() {
               transition={{ duration: 0.5, delay: 0.2 }}
             >
               {/* Section 3: Clinical Assessment */}
-            <section className="glass-card rounded-[32px] overflow-hidden border-2 border-slate-100 shadow-xl shadow-slate-100/50">
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-sm">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center text-white shadow-lg shadow-amber-100">
-                    <span className="font-black text-lg">3</span>
+            <section className="glass-card rounded-[24px] overflow-hidden border-2 border-slate-100 shadow-xl shadow-slate-100/50">
+              <div className="p-2.5 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-sm">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-white shadow-lg shadow-amber-100">
+                    <span className="font-black text-sm">3</span>
                   </div>
                   <div>
-                    <h2 className="font-black text-slate-800 tracking-tight text-lg uppercase">Clinical Assessment</h2>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Screening & Safety</p>
+                    <h2 className="font-black text-slate-800 tracking-tight text-base uppercase leading-none">Clinical Assessment</h2>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Screening & Safety</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <button 
                     onClick={resetClinicalAssessment}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                    className="flex items-center gap-1.5 px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all"
                   >
-                    <RotateCcw size={12} />
-                    <span>Reset Section</span>
+                    <RotateCcw size={10} />
+                    <span>Reset</span>
                   </button>
                 </div>
               </div>
               
-              <div className="p-6 space-y-8 bg-white/40">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+              <div className="p-3 space-y-4 bg-white/40">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Comorbidities */}
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div>
                       <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest mb-1 flex items-center gap-2">
                         <Plus size={14} className="text-amber-500" />
@@ -919,7 +1046,7 @@ export default function App() {
                     </div>
                     <div className="space-y-1.5">
                       {Object.keys(INITIAL_COMPLICATIONS).map((key) => (
-                        <label key={key} className="flex items-center gap-3 p-2 rounded-xl group/item cursor-pointer border border-transparent hover:bg-white hover:shadow-sm transition-all">
+                        <label key={key} className="flex items-center gap-2.5 p-1.5 rounded-xl group/item cursor-pointer border border-transparent hover:bg-white hover:shadow-sm transition-all">
                           <div className="relative flex items-center">
                             <input 
                               type="checkbox" 
@@ -927,10 +1054,10 @@ export default function App() {
                               checked={complications[key as keyof Complications]}
                               onChange={() => toggleComplication(key as keyof Complications)}
                             />
-                            <div className="w-5 h-5 border-2 border-slate-400 rounded-lg peer-checked:bg-amber-500 peer-checked:border-amber-500 transition-all group-hover/item:border-amber-200"></div>
-                            <Check size={12} className="absolute left-1 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
+                            <div className="w-4 h-4 border-2 border-slate-400 rounded peer-checked:bg-amber-500 peer-checked:border-amber-500 transition-all group-hover/item:border-amber-200"></div>
+                            <Check size={10} className="absolute left-0.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
                           </div>
-                          <span className="text-[11px] font-bold text-slate-600 group-hover/item:text-slate-900 transition-colors uppercase tracking-tight">
+                          <span className="text-[10px] font-bold text-slate-600 group-hover/item:text-slate-900 transition-colors uppercase tracking-tight">
                             {COMPLICATION_LABELS[key] || key}
                           </span>
                         </label>
@@ -960,7 +1087,7 @@ export default function App() {
                   </div>
 
                   {/* Contraindications */}
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div>
                       <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest mb-1 flex items-center gap-2">
                         <AlertTriangle size={14} className="text-rose-500" />
@@ -968,9 +1095,9 @@ export default function App() {
                       </h3>
                       <p className="text-[10px] text-slate-400 font-bold leading-tight uppercase tracking-tighter">Safety exclusion factors</p>
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="space-y-1">
                       {Object.keys(INITIAL_CONTRAINDICATIONS).map((key) => (
-                        <label key={key} className="flex items-center gap-3 p-2 rounded-xl group/item cursor-pointer border border-transparent hover:bg-white hover:shadow-sm transition-all">
+                        <label key={key} className="flex items-center gap-2.5 p-1.5 rounded-xl group/item cursor-pointer border border-transparent hover:bg-white hover:shadow-sm transition-all">
                           <div className="relative flex items-center">
                             <input 
                               type="checkbox" 
@@ -978,10 +1105,10 @@ export default function App() {
                               checked={contraindications[key as keyof Contraindications]}
                               onChange={() => toggleContraindication(key as keyof Contraindications)}
                             />
-                            <div className="w-5 h-5 border-2 border-slate-400 rounded-lg peer-checked:bg-rose-500 peer-checked:border-rose-500 transition-all group-hover/item:border-rose-200"></div>
-                            <AlertTriangle size={12} className="absolute left-1 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
+                            <div className="w-4 h-4 border-2 border-slate-400 rounded peer-checked:bg-rose-500 peer-checked:border-rose-500 transition-all group-hover/item:border-rose-200"></div>
+                            <AlertTriangle size={10} className="absolute left-0.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
                           </div>
-                          <span className="text-[11px] font-bold text-slate-600 group-hover/item:text-slate-900 transition-colors uppercase tracking-tight">
+                          <span className="text-[10px] font-bold text-slate-600 group-hover/item:text-slate-900 transition-colors uppercase tracking-tight">
                             {CONTRAINDICATION_LABELS[key] || key}
                           </span>
                         </label>
@@ -1014,37 +1141,37 @@ export default function App() {
             </section>
 
           {/* Section 4: Interactions Check */}
-          <section className="glass-card rounded-[32px] overflow-hidden border-2 border-slate-100 shadow-xl shadow-slate-100/50">
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-lg shadow-emerald-100">
-                  <span className="font-black text-lg">4</span>
+          <section className="glass-card rounded-[24px] overflow-hidden border-2 border-slate-100 shadow-xl shadow-slate-100/50">
+            <div className="p-2.5 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white shadow-lg shadow-emerald-100">
+                  <span className="font-black text-sm">4</span>
                 </div>
                 <div>
-                  <h2 className="font-black text-slate-800 tracking-tight text-lg uppercase">Interactions Check</h2>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Pharmacological Safety</p>
+                  <h2 className="font-black text-slate-800 tracking-tight text-base uppercase leading-none">Interactions Check</h2>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Pharmacological Safety</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <button 
                   onClick={resetInteractions}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                  className="flex items-center gap-1.5 px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all"
                 >
-                  <RotateCcw size={12} />
-                  <span>Reset Section</span>
+                  <RotateCcw size={10} />
+                  <span>Reset</span>
                 </button>
               </div>
             </div>
-            <div className="p-6 space-y-6 bg-white/40">
-              <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                Identify key medications that may involve clinical interactions with GLP-1RA therapy [4].
+            <div className="p-3 space-y-3 bg-white/40">
+              <p className="text-[10px] text-slate-500 leading-normal font-medium">
+                Identify key medications that may involve clinical interactions [4].
               </p>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {INTERACTION_MEDICATIONS.map((med) => (
                   <label 
                     key={med.id} 
-                    className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer border transition-all hover:shadow-md ${
+                    className={`flex items-center gap-2 p-2 rounded-xl cursor-pointer border transition-all hover:shadow-md ${
                       patient.currentMedications.includes(med.id) 
                       ? 'bg-emerald-50 border-emerald-200' 
                       : 'bg-white border-slate-200 hover:border-emerald-100 shadow-sm'
@@ -1057,16 +1184,16 @@ export default function App() {
                         checked={patient.currentMedications.includes(med.id)}
                         onChange={() => toggleMedication(med.id)}
                       />
-                      <div className={`w-5 h-5 border-2 rounded-lg transition-all ${
+                      <div className={`w-4 h-4 border-2 rounded transition-all ${
                         patient.currentMedications.includes(med.id)
                         ? 'bg-emerald-600 border-emerald-600'
                         : 'border-slate-300'
                       }`}></div>
-                      <Check size={12} className={`absolute left-1 text-white transition-opacity ${
+                      <Check size={10} className={`absolute left-0.5 text-white transition-opacity ${
                         patient.currentMedications.includes(med.id) ? 'opacity-100' : 'opacity-0'
                       }`} />
                     </div>
-                    <span className="text-xs font-bold text-slate-700 tracking-tight leading-none">{med.label}</span>
+                    <span className="text-[10px] font-bold text-slate-700 tracking-tight leading-none">{med.label}</span>
                   </label>
                 ))}
                 <label 
@@ -1099,62 +1226,63 @@ export default function App() {
           </section>
         </motion.div>
         </div>
+      </div>
 
-        {/* Right Column: Results */}
-        <div className="lg:col-span-5 relative">
+        {/* Assessment Summary Section (Stacked at the Bottom) */}
+        <div className="relative mt-4">
           <AnimatePresence>
             {isCalculating && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 z-50 bg-white/40 backdrop-blur-[2px] rounded-[40px] flex items-center justify-center pointer-events-none"
+                className="absolute inset-0 z-50 bg-white/40 backdrop-blur-[2px] rounded-[32px] flex items-center justify-center pointer-events-none"
               >
-                <div className="bg-white px-6 py-4 rounded-3xl shadow-2xl border border-slate-100 flex items-center gap-4">
-                  <Loader2 className="animate-spin text-indigo-600" size={24} />
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-600">Re-evaluating Clinical Eligibility...</span>
+                <div className="bg-white px-4 py-2 rounded-2xl shadow-2xl border border-slate-100 flex items-center gap-3">
+                  <Loader2 className="animate-spin text-indigo-600" size={18} />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Re-evaluating Eligibility...</span>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          <div className="space-y-6">
-          <section className="glass-card rounded-[40px] overflow-hidden sticky top-24 shadow-2xl shadow-slate-200/50 border border-slate-200">
-            <div className="p-6 bg-slate-900">
+          <div className="space-y-4">
+          <section className="glass-card rounded-[32px] overflow-hidden shadow-2xl shadow-slate-200/50 border border-slate-200">
+            <div className="p-3 bg-slate-900">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-500/20">
-                    <ClipboardCheck size={24} />
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-xl shadow-indigo-500/20">
+                    <ClipboardCheck size={20} />
                   </div>
                   <div>
-                    <h2 className="text-lg font-black text-white tracking-tight leading-none">Assessment Summary</h2>
-                    <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-indigo-400 mt-1">Real-time Clinical Guide</p>
+                    <h2 className="text-base font-black text-white tracking-tight leading-none">Assessment Summary</h2>
+                    <p className="text-[9px] uppercase tracking-[0.2em] font-bold text-indigo-400 mt-0.5">Clinical Decision Support</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="p-6 space-y-8 bg-white">
+            <div className="p-3 space-y-4 bg-white">
               {/* Quick Input Summary */}
               {(patient.weight > 0 || patient.age > 0) && (
-                <div className="grid grid-cols-2 gap-4 pb-6 border-b border-slate-100">
-                  <div className="space-y-1">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Calculated BMI</p>
-                    <p className={`text-xl font-black ${patient.bmi >= 30 ? 'text-amber-600' : 'text-indigo-600'}`}>
-                      {patient.bmi ? patient.bmi.toFixed(1) : '—'} <span className="text-[10px] text-slate-400">kg/m²</span>
+                <div className="grid grid-cols-2 gap-3 pb-3 border-b border-slate-100">
+                  <div className="space-y-0.5">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">BMI</p>
+                    <p className={`text-lg font-black ${patient.bmi >= 30 ? 'text-amber-600' : 'text-indigo-600'}`}>
+                      {patient.bmi ? patient.bmi.toFixed(1) : '—'} <span className="text-[8px] text-slate-400">kg/m²</span>
                     </p>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Patient Age</p>
-                    <p className="text-xl font-black text-slate-800">
-                      {patient.age > 0 ? patient.age : '—'} <span className="text-[10px] text-slate-400">yrs</span>
+                  <div className="space-y-0.5">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Age</p>
+                    <p className="text-lg font-black text-slate-800">
+                      {patient.age > 0 ? patient.age : '—'} <span className="text-[8px] text-slate-400">yrs</span>
                     </p>
                   </div>
                 </div>
               )}
               {/* Eligibility Status */}
-              <div className="space-y-3">
-                <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.15em] mb-2">Eligibility Status</h3>
+              <div className="space-y-2">
+                <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] mb-1">Eligibility Status</h3>
                 <AnimatePresence mode="wait">
                   {assessment.safetyState === 'incomplete' ? (
                     <motion.div 
@@ -1162,20 +1290,20 @@ export default function App() {
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
-                      className="p-6 bg-slate-50 border border-slate-200 rounded-3xl flex items-start gap-4 shadow-sm"
+                      className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-3 shadow-sm"
                     >
-                      <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 shrink-0 shadow-lg shadow-indigo-50">
-                        <Clock size={24} />
+                      <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 shrink-0 shadow-lg shadow-indigo-50">
+                        <Clock size={18} />
                       </div>
                       <div className="flex-1">
-                        <p className="font-black text-indigo-900 leading-tight tracking-tight">Assessment Incomplete</p>
-                        <p className="text-xs text-indigo-700/80 mt-1 font-medium leading-relaxed italic">
-                          Please complete the following required sections to finalize the clinical eligibility calculation:
+                        <p className="font-black text-indigo-900 leading-tight tracking-tight text-sm">Assessment Incomplete</p>
+                        <p className="text-[10px] text-indigo-700/80 mt-0.5 font-medium leading-tight italic">
+                          Please complete:
                         </p>
-                        <ul className="mt-3 space-y-1.5">
+                        <ul className="mt-2 grid grid-cols-2 gap-1.5">
                           {assessment.missingSections.map((section, idx) => (
-                            <li key={idx} className="flex items-center gap-2 text-[10px] font-bold text-red-600 bg-red-50/50 px-2 py-1 rounded-lg border border-red-100/50">
-                              <AlertCircle size={10} />
+                            <li key={idx} className="flex items-center gap-1.5 text-[9px] font-bold text-red-600 bg-red-50/50 px-1.5 py-0.5 rounded-lg border border-red-100/50">
+                              <AlertCircle size={8} />
                               {section}
                             </li>
                           ))}
@@ -1187,14 +1315,14 @@ export default function App() {
                       key="eligible"
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      className="p-6 bg-emerald-50 border border-emerald-100 rounded-3xl flex items-start gap-4 shadow-sm"
+                      className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-start gap-3 shadow-sm"
                     >
-                      <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-emerald-200">
-                        <CheckCircle2 size={24} />
+                      <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-emerald-200">
+                        <CheckCircle2 size={18} />
                       </div>
                       <div>
-                        <p className="font-black text-emerald-900 leading-tight">Patient is Eligible</p>
-                        <p className="text-xs text-emerald-700/80 mt-1 font-medium leading-relaxed italic">Meets evidence-based criteria for GLP-1 RA therapy adjunct to lifestyle intervention.</p>
+                        <p className="font-black text-emerald-900 leading-tight text-sm">Patient is Eligible</p>
+                        <p className="text-[10px] text-emerald-700/80 mt-0.5 font-medium leading-tight italic">Meets evidence-based criteria for GLP-1 RA therapy adjunct to lifestyle intervention.</p>
                       </div>
                     </motion.div>
                   ) : assessment.safetyState === 'caution' ? (
@@ -1202,14 +1330,14 @@ export default function App() {
                       key="caution"
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      className="p-6 bg-amber-50 border border-amber-200 rounded-3xl flex items-start gap-4 shadow-sm"
+                      className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 shadow-sm"
                     >
-                      <div className="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-amber-200">
-                        <Scale size={24} />
+                      <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-amber-200">
+                        <Scale size={18} />
                       </div>
                       <div>
-                        <p className="font-black text-amber-900 leading-tight">Eligible with Caution</p>
-                        <p className="text-xs text-amber-700/80 mt-1 font-medium leading-relaxed italic">Patient meets weight criteria, but significant clinical or pharmacological cautions are present. Review interaction details below before prescribing.</p>
+                        <p className="font-black text-amber-900 leading-tight text-sm">Eligible with Caution</p>
+                        <p className="text-[10px] text-amber-700/80 mt-0.5 font-medium leading-tight italic">Meets criteria with significant clinical/pharmacological cautions. Review details.</p>
                       </div>
                     </motion.div>
                   ) : (
@@ -1217,19 +1345,19 @@ export default function App() {
                       key="ineligible"
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      className="p-6 bg-red-50 border border-red-200 rounded-3xl flex items-start gap-4 shadow-sm"
+                      className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3 shadow-sm"
                     >
-                      <div className="w-12 h-12 bg-red-500 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-red-200">
-                        <XCircle size={24} />
+                      <div className="w-10 h-10 bg-red-500 rounded-xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-red-200">
+                        <XCircle size={18} />
                       </div>
                       <div>
-                        <p className="font-black text-red-900 leading-tight">Criteria Not Met</p>
-                        <p className="text-xs text-red-700/80 mt-1 font-medium leading-relaxed italic mb-4">
+                        <p className="font-black text-red-900 leading-tight text-sm">Criteria Not Met</p>
+                        <p className="text-[10px] text-red-700/80 mt-0.5 font-medium leading-tight italic mb-2">
                           {assessment.hasContraindications 
-                            ? "Medical contraindications identified. GLP-1 RA therapy is not appropriate." 
+                            ? "Medical contraindications identified." 
                             : assessment.isUnderage
-                            ? "Tool is for adult patients (18+) only."
-                            : "Patient does not currently meet weight-based clinical thresholds for pharmacotherapy."}
+                            ? "Adult patients (18+) only."
+                            : "Does not meet weight-based thresholds."}
                         </p>
 
                         {assessment.missingFactors.length > 0 && (
@@ -1253,13 +1381,13 @@ export default function App() {
 
               {/* Criteria Met */}
               {assessment.reasons.length > 0 && (
-                <div className="space-y-4">
-                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.15em] mb-2">Clinical Criteria Met</h3>
-                  <div className="space-y-2">
+                <div className="space-y-2">
+                  <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] mb-1">Clinical Criteria Met</h3>
+                  <div className="grid grid-cols-2 gap-2">
                     {assessment.reasons.map((r, i) => (
-                      <div key={i} className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-bold text-slate-700">
-                        <div className="w-6 h-6 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
-                          <Check size={12} className="text-indigo-600" />
+                      <div key={i} className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-100 rounded-xl text-[9px] font-bold text-slate-700">
+                        <div className="w-4 h-4 rounded bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+                          <Check size={8} className="text-indigo-600" />
                         </div>
                         {r}
                       </div>
@@ -1272,32 +1400,28 @@ export default function App() {
               {assessment.isComplete && assessment.isHighMetabolicRisk && (
                 <div className="space-y-4">
                   <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.15em] mb-2 font-sans">High Metabolic Risk Consideration</h3>
-                  <div className="p-5 bg-orange-50 border-2 border-orange-100/50 rounded-[32px] relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                      <ShieldAlert size={64} className="text-orange-600" />
+                  <div className="p-3 bg-orange-50 border-2 border-orange-100/50 rounded-[24px] relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <ShieldAlert size={48} className="text-orange-600" />
                     </div>
                     <div className="relative z-10">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="w-10 h-10 bg-orange-500 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-orange-200">
-                          <Zap size={20} />
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white shrink-0 shadow-lg shadow-orange-200">
+                          <Zap size={16} />
                         </div>
-                        <p className="font-black text-sm text-orange-950 tracking-tight leading-tight">Patient in High Metabolic Risk Category</p>
+                        <p className="font-black text-xs text-orange-950 tracking-tight leading-tight">Patient in High Metabolic Risk Category</p>
                       </div>
-                      <p className="text-[11px] font-bold text-orange-900/80 leading-relaxed mb-4">
-                        This patient belongs to a population group (Asian or Indigenous) known to have a significantly higher risk of cardiometabolic complications at lower anthropometric levels compared to the general population.
+                      <p className="text-[9px] font-bold text-orange-900/80 leading-normal mb-2">
+                        Early intervention threshold applied (BMI ≥27.5) as the patient belongs to a high-risk population (Indigenous or Asian) [1].
                       </p>
                       
-                      <div className="space-y-3 p-3.5 bg-white/60 rounded-2xl border border-orange-200/40">
-                        <p className="text-[10px] font-black uppercase text-orange-600/60 tracking-widest mb-1">Clinical Importance for Prescribers:</p>
-                        <div className="space-y-2">
-                          <p className="text-[10px] font-bold text-orange-800 leading-relaxed">
-                            <span className="font-black">Early Intervention:</span> Patients should be considered for GLP-1 RA therapy at lower BMI (≥27.5) and Waist Circumference thresholds, as health risks escalate faster in these groups.
+                      <div className="space-y-2 p-2.5 bg-white/60 rounded-xl border border-orange-200/40">
+                        <div className="space-y-1">
+                          <p className="text-[9px] font-bold text-orange-800 leading-normal">
+                            <span className="font-black">Sensitivity:</span> Significant metabolic benefits possible even with modest weight loss.
                           </p>
-                          <p className="text-[10px] font-bold text-orange-800 leading-relaxed">
-                            <span className="font-black">Metabolic Sensitivity:</span> These individuals may experience metabolic benefits even with modest weight loss, making them strong candidates for early pharmacological adjuncts to lifestyle changes.
-                          </p>
-                          <p className="text-[10px] font-bold text-orange-800 leading-relaxed">
-                            <span className="font-black">Co-morbidity Screening:</span> Heightened vigilance is required for screening and managing comorbid Type 2 Diabetes and Cardiovascular disease, which often manifest earlier.
+                          <p className="text-[9px] font-bold text-orange-800 leading-normal">
+                            <span className="font-black">Screening:</span> Heightened vigilance for early-onset Type 2 diabetes and CVD required.
                           </p>
                         </div>
                       </div>
@@ -1376,7 +1500,7 @@ export default function App() {
               {assessment.isEligible && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.15em] mb-2">Pharmacotherapy Options</h3>
+                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.15em] mb-2">pharmacotherapy dosing guide</h3>
                   </div>
                   
                   <div className="p-4 bg-indigo-50/50 border border-indigo-100/50 rounded-2xl flex items-start gap-4">
@@ -1386,31 +1510,32 @@ export default function App() {
                     </p>
                   </div>
 
-                  <div className="space-y-3">
-                    {medications.map((med) => (
-                      <div key={med.name} className="p-5 bg-slate-50/50 border border-slate-100 rounded-[32px] hover:border-indigo-200 transition-all group hover:bg-white hover:shadow-xl hover:shadow-indigo-100/30">
-                        <div className="flex items-center justify-between mb-4">
+                  <div className="space-y-2">
+                    {medications
+                      .filter(m => selectedMedChoices.includes(m.name))
+                      .map((med) => (
+                       <div key={med.name} className="p-3 bg-slate-50/50 border border-slate-100 rounded-[20px] hover:border-indigo-200 transition-all group hover:bg-white hover:shadow-xl hover:shadow-indigo-100/30">
+                        <div className="flex items-center justify-between mb-2">
                           <div>
-                            <span className="font-black text-slate-900 text-base">{med.name}</span>
-                            <span className="ml-2 text-slate-400 font-bold text-[10px] uppercase tracking-widest">{med.brand}</span>
+                            <span className="font-black text-slate-900 text-sm">{med.name}</span>
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="p-2.5 bg-white rounded-2xl border border-slate-100 shadow-sm text-center">
-                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Start Dose</p>
-                            <p className="text-sm font-black text-indigo-600 mt-0.5">{med.startingDose}</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="p-1.5 bg-white rounded-xl border border-slate-100 shadow-sm text-center">
+                            <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Start Dose</p>
+                            <p className="text-xs font-black text-indigo-600 mt-0.5">{med.startingDose}</p>
                           </div>
-                          <div className="p-2.5 bg-white rounded-2xl border border-slate-100 shadow-sm text-center">
-                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Max Dose</p>
-                            <p className="text-sm font-black text-indigo-600 mt-0.5">{med.maxDose}</p>
+                          <div className="p-1.5 bg-white rounded-xl border border-slate-100 shadow-sm text-center">
+                            <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Max Dose</p>
+                            <p className="text-xs font-black text-indigo-600 mt-0.5">{med.maxDose}</p>
                           </div>
                         </div>
-                        <div className="mt-4 p-3 bg-white/50 rounded-2xl border border-slate-100">
-                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                            <Clock size={10} className="text-indigo-500" />
+                        <div className="mt-2 p-2 bg-white/50 rounded-xl border border-slate-100">
+                          <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                            <Clock size={8} className="text-indigo-500" />
                             Escalation Schedule
                           </p>
-                          <p className="text-xs text-slate-600 font-bold leading-relaxed">{med.escalation}</p>
+                          <p className="text-[10px] text-slate-600 font-bold leading-tight">{med.escalation}</p>
                         </div>
                       </div>
                     ))}
@@ -1420,23 +1545,57 @@ export default function App() {
 
               {/* Monitoring */}
               {assessment.isEligible && (
-                <div className="space-y-3">
-                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.15em] mb-2">Safety and Monitoring Recommendations [1, 2, 3]</h3>
-                  <div className="grid grid-cols-1 gap-1.5">
-                    {[
-                      "Monthly clinical review for dose tolerance",
-                      "Monitor Blood Pressure & Resting Heart Rate (HR)",
-                      "self-monitored blood glucose if comorbid diabetes",
-                      "Assess for prolonged Gastrointestinal (GI) symptoms",
-                      "Energy-reduced diet (approx. 2000–4000 kJ/day deficit)",
-                      "Aerobic and resistance physical activity (150–300 mins/week)",
-                      "Standardized behavioral lifestyle interventions"
-                    ].map((item, i) => (
-                      <div key={i} className="flex items-center gap-3 p-2.5 bg-slate-50/50 rounded-xl text-[10px] font-bold text-slate-500 border border-transparent hover:border-slate-100 hover:bg-white transition-all">
-                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0 shadow-[0_0_8px_rgba(129,140,248,0.5)]" />
-                        {item}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] mb-1">Safety & Monitoring [1, 2, 3]</h3>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {[
+                        "Monthly clinical review",
+                        "Monitor blood pressure & heart rate",
+                        "home blood glucose monitoring if comorbid Type 2 diabetes",
+                        "Assess gastrointestinal symptoms",
+                        calorieTarget ? `Energy-reduced diet (~${calorieTarget.min}-${calorieTarget.max} kcal/day)` : "Energy-reduced diet",
+                        "Activity (150-300 mins/week)",
+                        "Lifestyle intervention"
+                      ].map((item, i) => (
+                        <div key={i} className="flex items-center gap-2 px-2 py-1.5 bg-slate-50/50 rounded-lg text-[9px] font-bold text-slate-500 border border-slate-100 hover:bg-white transition-all">
+                          <div className="w-1 h-1 rounded-full bg-indigo-400 shrink-0 shadow-[0_0_4px_rgba(129,140,248,0.5)]" />
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h3 className="text-[10px] font-black text-rose-500 uppercase tracking-[0.15em] mb-1">Potential Side Effects [1, 2, 3]</h3>
+                    <div className="p-3 bg-rose-50/30 border border-rose-100/50 rounded-2xl">
+                      <div className="grid grid-cols-1 gap-2">
+                        {medications
+                          .filter(m => selectedMedChoices.includes(m.name))
+                          .map((med) => (
+                            <div key={med.name} className="space-y-1">
+                              <p className="text-[9px] font-black text-rose-900 uppercase tracking-tighter flex items-center gap-1.5">
+                                <span className="w-1 h-1 rounded-full bg-rose-400" />
+                                {med.name}
+                              </p>
+                              <div className="flex flex-wrap gap-1 ml-2.5">
+                                {med.sideEffects.map((effect, idx) => (
+                                  <span key={idx} className="px-1.5 py-0.5 bg-white border border-rose-100 rounded text-[8px] font-bold text-rose-700/80 uppercase">
+                                    {effect}
+                                  </span>
+                                ))}
+                                {/* Adding standardized clinical highlights if missing */}
+                                <span className="px-1.5 py-0.5 bg-white border border-rose-100 rounded text-[8px] font-bold text-rose-700/80 uppercase">
+                                  Heart Rate Increase
+                                </span>
+                                <span className="px-1.5 py-0.5 bg-white border border-rose-100 rounded text-[8px] font-bold text-rose-700/80 uppercase italic">
+                                  AKI Risk (if dehydrated)
+                                </span>
+                              </div>
+                            </div>
+                          ))}
                       </div>
-                    ))}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1494,54 +1653,54 @@ export default function App() {
               )}
             </div>
           </section>
+          </div>
         </div>
       </div>
-    </div>
-  </main>
+    </main>
 
       {/* Reset Button */}
-      <div className="max-w-7xl mx-auto px-6 mb-8 text-center">
+      <div className="max-w-4xl mx-auto px-4 mb-4 text-center">
         <button
           onClick={handleReset}
-          className="inline-flex items-center gap-3 px-8 py-5 bg-white hover:bg-slate-50 text-slate-800 rounded-[32px] transition-all duration-300 font-black uppercase tracking-widest text-xs shadow-xl shadow-slate-200 border border-slate-200 group"
+          className="inline-flex items-center gap-2 px-6 py-3 bg-white hover:bg-slate-50 text-slate-800 rounded-[24px] transition-all duration-300 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-slate-200 border border-slate-200 group"
         >
-          <RotateCcw size={18} className="text-indigo-600 group-hover:rotate-[-120deg] transition-transform duration-500" />
-          <span>Reset All Sections</span>
+          <RotateCcw size={14} className="text-indigo-600 group-hover:rotate-[-120deg] transition-transform duration-500" />
+          <span>Reset Assessment</span>
         </button>
       </div>
 
       {/* Footer: Citations & Disclaimer */}
-      <footer className="max-w-7xl mx-auto px-6 pb-12 pt-6">
-        <div className="glass-card rounded-[40px] p-8 space-y-8 bg-white/80 border border-slate-200 shadow-xl shadow-slate-200/50">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+      <footer className="max-w-4xl mx-auto px-4 pb-8 pt-2">
+        <div className="glass-card rounded-[32px] p-6 space-y-6 bg-white/80 border border-slate-200 shadow-xl shadow-slate-200/50">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h3 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                <BookOpen size={16} className="text-indigo-600" />
-                Scientific References
+              <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                <BookOpen size={14} className="text-indigo-600" />
+                References
               </h3>
-              <ul className="space-y-3">
+              <ul className="space-y-2">
                 {[
-                  "[1] Markovic TP, et al. The Australian Obesity Management Algorithm - a simple tool to guide the management of obesity in primary care. 2022.",
-                  "[2] Li YR, et al. Glucagon-like peptide-1 receptor agonists for weight loss: Consider the case for selective pharmacotherapy. AJGP 2025;54(4).",
-                  "[3] Forner P, Hocking S. Pharmacotherapy for the management of overweight and obesity. AJGP 2025;54(4).",
-                  "[4] Privacy Act 1988 (Cth) & Australian Privacy Principles."
+                  "[1] Obesity Algorithm - Markovic 2022.",
+                  "[2] GLP-1 RA Weight Loss - AJGP 2025.",
+                  "[3] Obesity Pharmacotherapy - AJGP 2025.",
+                  "[4] Privacy Act (Cth) & APPs."
                 ].map((cite, i) => (
-                  <li key={i} className="text-[10px] text-slate-400 font-medium font-mono leading-relaxed p-3 bg-slate-50 rounded-xl border border-slate-100 hover:text-slate-600 transition-colors">
+                  <li key={i} className="text-[9px] text-slate-400 font-medium font-mono leading-tight p-2 bg-slate-50 rounded-lg border border-slate-100 italic transition-colors hover:text-slate-500">
                     {cite}
                   </li>
                 ))}
               </ul>
             </div>
-            <div className="p-6 bg-indigo-600 rounded-[32px] text-white shadow-xl shadow-indigo-100">
-              <div className="flex items-center gap-3 mb-3">
-                <Info size={20} className="text-indigo-200" />
-                <h3 className="font-extrabold uppercase tracking-widest text-sm">Clinical Warning</h3>
+            <div className="p-4 bg-indigo-600 rounded-[28px] text-white shadow-xl shadow-indigo-100">
+              <div className="flex items-center gap-2 mb-2">
+                <Info size={16} className="text-indigo-200" />
+                <h3 className="font-extrabold uppercase tracking-widest text-xs">Medical Disclaimer</h3>
               </div>
-              <p className="text-xs font-medium leading-relaxed text-indigo-100 italic">
-                This tool is intended for use by healthcare professionals as a decision support aid. It does not replace clinical judgment or official product information. Always verify dosing and contraindications with current professional guidelines and TGA-approved product materials. The drug interactions included in this app may not be an exhaustive list.
+              <p className="text-[10px] font-medium leading-normal text-indigo-50/90 italic">
+                Decision support only. Not a replacement for clinical judgment. Always verify dosing and contraindications with TGA product materials.
               </p>
-              <div className="mt-6 pt-4 border-t border-white/20 flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-indigo-200">
-                <span>V1.2 Clinical Release</span>
+              <div className="mt-4 pt-3 border-t border-white/20 flex items-center justify-between text-[8px] font-black uppercase tracking-widest text-indigo-200">
+                <span>V1.2 Release</span>
                 <span>© 2026 Clinical Decision Support</span>
               </div>
             </div>

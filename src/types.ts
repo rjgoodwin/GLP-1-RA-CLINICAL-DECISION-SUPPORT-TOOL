@@ -50,7 +50,6 @@ export interface AssessmentResult {
 
 export interface MedicationOption {
   name: string;
-  brand: string;
   startingDose: string;
   escalation: string;
   maxDose: string;
