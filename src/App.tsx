@@ -819,53 +819,91 @@ export default function App() {
               </div>
             </div>
             <div className="p-3 space-y-3 bg-white/40">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
-                <div className="space-y-1.5">
+              {/* Mandatory Metric Units Notice */}
+              <div id="mandatory-metric-notice" className="p-2.5 bg-amber-50/70 border border-amber-200/60 rounded-xl flex items-start gap-2.5">
+                <Info size={14} className="text-amber-600 mt-0.5 shrink-0" />
+                <p className="text-[10px] text-amber-900 leading-normal font-semibold">
+                  <span className="font-extrabold text-amber-950 uppercase tracking-wide">Metric Units Note:</span> Measurements must be entered in metric units. Please enter height in <span className="font-extrabold text-indigo-700">centimetres (cm)</span>, weight in <span className="font-extrabold text-indigo-700">kilograms (kg)</span>, and waist circumference in <span className="font-extrabold text-indigo-700">centimetres (cm)</span> for calculations to function correctly.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
+                
+                {/* Height Input */}
+                <div id="height-input-wrapper" className="space-y-1.5 flex flex-col justify-between">
                   <label className="label-upper">Height (cm)</label>
-                  <input 
-                    type="number" 
-                    className={`input-field text-lg font-bold transition-colors ${patient.height > 0 ? 'border-indigo-600 text-indigo-600' : 'border-slate-300'}`}
-                    placeholder="0"
-                    value={patient.height || ''}
-                    onChange={(e) => handlePatientChange('height', parseFloat(e.target.value) || 0)}
-                  />
+                  <div className="relative">
+                    <input 
+                      type="number" 
+                      step="any"
+                      className={`input-field pr-12 text-lg font-bold transition-colors ${patient.height > 0 ? 'border-indigo-600 text-indigo-600' : 'border-slate-300'}`}
+                      placeholder="0"
+                      value={patient.height || ''}
+                      onChange={(e) => handlePatientChange('height', parseFloat(e.target.value) || 0)}
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-black uppercase tracking-widest pointer-events-none select-none">
+                      cm
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-1.5">
+
+                {/* Weight Input */}
+                <div id="weight-input-wrapper" className="space-y-1.5 flex flex-col justify-between">
                   <label className="label-upper">Weight (kg)</label>
-                  <input 
-                    type="number" 
-                    className={`input-field text-lg font-bold transition-colors ${patient.weight > 0 ? 'border-indigo-600 text-indigo-600' : 'border-slate-300'}`}
-                    placeholder="0.0"
-                    value={patient.weight || ''}
-                    onChange={(e) => handlePatientChange('weight', parseFloat(e.target.value) || 0)}
-                  />
+                  <div className="relative">
+                    <input 
+                      type="number" 
+                      step="any"
+                      className={`input-field pr-12 text-lg font-bold transition-colors ${patient.weight > 0 ? 'border-indigo-600 text-indigo-600' : 'border-slate-300'}`}
+                      placeholder="0.0"
+                      value={patient.weight || ''}
+                      onChange={(e) => handlePatientChange('weight', parseFloat(e.target.value) || 0)}
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-black uppercase tracking-widest pointer-events-none select-none">
+                      kg
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-1.5">
+
+                {/* Waist Circumference Input */}
+                <div id="waist-input-wrapper" className="space-y-1.5 flex flex-col justify-between">
                   <label className="label-upper">Waist Circumference (cm)</label>
-                  <input 
-                    type="number" 
-                    className={`input-field text-lg font-bold transition-colors ${patient.waistCircumference > 0 ? 'border-indigo-600 text-indigo-600' : 'border-slate-300'}`}
-                    placeholder="0"
-                    value={patient.waistCircumference || ''}
-                    onChange={(e) => handlePatientChange('waistCircumference', parseInt(e.target.value) || 0)}
-                  />
+                  <div className="relative">
+                    <input 
+                      type="number" 
+                      step="any"
+                      className={`input-field pr-12 text-lg font-bold transition-colors ${patient.waistCircumference > 0 ? 'border-indigo-600 text-indigo-600' : 'border-slate-300'}`}
+                      placeholder="0"
+                      value={patient.waistCircumference || ''}
+                      onChange={(e) => handlePatientChange('waistCircumference', parseInt(e.target.value) || 0)}
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-black uppercase tracking-widest pointer-events-none select-none">
+                      cm
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="label-upper">BMI (kg/m²)</label>
-                  <div className={`input-field flex items-center justify-between transition-all ${
+
+                {/* Calculated BMI Output */}
+                <div id="bmi-output-wrapper" className="space-y-1.5 flex flex-col justify-between">
+                  <label className="label-upper">Calculated BMI (kg/m²)</label>
+                  <div className={`input-field flex items-center justify-between transition-all h-[42px] ${
                     patient.bmi >= 30 ? 'bg-amber-50 border-amber-200' : 
                     patient.bmi > 0 ? 'bg-indigo-50/30 border-indigo-600' : 
                     'bg-slate-50 border-slate-200'
                   }`}>
-                    <span className={`text-2xl font-black ${
+                    <span className={`text-xl font-black ${
                       patient.bmi >= 30 ? 'text-amber-600' : 
                       patient.bmi > 0 ? 'text-indigo-600' : 
                       'text-indigo-400'
                     }`}>
-                      {patient.bmi ? patient.bmi.toFixed(1) : '0.0'}
+                      {patient.bmi ? patient.bmi.toFixed(1) : '—'}
                     </span>
+                    {patient.bmi > 0 && (
+                      <span className="text-[8px] font-black uppercase tracking-widest text-indigo-400">Calculated</span>
+                    )}
                   </div>
                 </div>
+
               </div>
             </div>
           </section>
