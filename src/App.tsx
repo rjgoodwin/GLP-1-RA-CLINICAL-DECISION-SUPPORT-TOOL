@@ -465,8 +465,8 @@ export default function App() {
     }
 
     const missingFactors: string[] = [];
-    if (patient.age > 0 && patient.age < 18) {
-      missingFactors.push('Patient must be 18 years or older');
+    if (patient.age > 0 && (patient.age < 18 || patient.age > 110)) {
+      missingFactors.push('Patient age must be between 18 and 110 years');
     }
     if (hasContraindications) {
       missingFactors.push('Presence of clinical contraindications makes therapy inappropriate');
@@ -486,7 +486,7 @@ export default function App() {
     const isWeightComplete = patient.weight > 0;
     const isHeightComplete = patient.height > 0;
     const isWaistComplete = patient.waistCircumference > 0;
-    const isAgeComplete = patient.age > 0;
+    const isAgeComplete = patient.age >= 18 && patient.age <= 110;
     const isGenderComplete = patient.gender !== null;
     const isPopulationComplete = patient.population !== null;
     const isComplicationsComplete = Object.values(complications).some(v => v) || comphistoryNone;
@@ -512,7 +512,7 @@ export default function App() {
     if (hasUnconfirmedWeight) missingSections.push('Weight Accuracy Confirmation');
     if (hasUnconfirmedWaist) missingSections.push('Waist Circumference Accuracy Confirmation');
     if (hasUnconfirmedBmi) missingSections.push('BMI Accuracy Confirmation');
-    if (!isAgeComplete) missingSections.push('Age (Adults 18+)');
+    if (!isAgeComplete) missingSections.push('Age (Adults 18-110)');
     if (!isGenderComplete) missingSections.push('Sex Assigned at Birth');
     if (!isPopulationComplete) missingSections.push('High Metabolic Risk Population status');
     if (!isComplicationsComplete) missingSections.push('Comorbidities Assessment');
@@ -520,7 +520,7 @@ export default function App() {
     if (!isMedicationsComplete) missingSections.push('Interactions Check');
 
     // A patient is clinical eligible based on metrics
-    const meetsMedicalCriteria = (eligibleByBMI || eligibleByWC) && !hasContraindications && patient.age >= 18;
+    const meetsMedicalCriteria = (eligibleByBMI || eligibleByWC) && !hasContraindications && patient.age >= 18 && patient.age <= 110;
     
     // Final eligibility takes absolute drug interactions into account
     const isEligible = isComplete && meetsMedicalCriteria && !hasAbsoluteDrugInteraction;
@@ -535,7 +535,7 @@ export default function App() {
       safetyState = 'ineligible';
     }
 
-    if (isComplete && !eligibleByBMI && !eligibleByWC && !hasContraindications && patient.age >= 18) {
+    if (isComplete && !eligibleByBMI && !eligibleByWC && !hasContraindications && patient.age >= 18 && patient.age <= 110) {
       missingFactors.push(`BMI must be ≥ ${bmiThreshold} kg/m²`);
       if (!hasComplications) {
         missingFactors.push(`BMI ≥ ${overweightThreshold} kg/m² with one or more clinical comorbidities (e.g. Type 2 Diabetes, OSA, Hypertension)`);
@@ -547,17 +547,59 @@ export default function App() {
       missingFactors.push('Absolute pharmacological contraindication detected');
     }
 
+    // Recommendation confidence calculations
+    let confidenceScore = 100;
+    const confidenceReasons: string[] = [];
+
+    if (patient.age >= 75) {
+      confidenceScore -= 30;
+      confidenceReasons.push('Patient is of advanced age (≥ 75 years), where clinical trial data is limited and adverse risks (falls, sarcopenia) are higher.');
+    }
+    if (patient.bmi >= 50) {
+      confidenceScore -= 20;
+      confidenceReasons.push('Super-obesity (BMI ≥ 50 kg/m²) may require multidisciplinary bariatric evaluation rather than standard pharmacotherapy.');
+    }
+    if (patient.bmi > 0 && patient.bmi < 16) {
+      confidenceScore -= 40;
+      confidenceReasons.push('Severe underweight/malnutrition threshold reached (BMI < 16 kg/m²), weight management therapy is inappropriate or highly risky.');
+    }
+    const activeComplicationsCount = Object.values(complications).filter(Boolean).length;
+    if (activeComplicationsCount >= 3) {
+      confidenceScore -= 20;
+      confidenceReasons.push(`High level of metabolic complexity (${activeComplicationsCount} active obesity-related complications) deviates from standard trial profiles.`);
+    }
+    if (hasContraindications) {
+      confidenceScore -= 30;
+      confidenceReasons.push('Presence of clinical contraindications makes recommendation highly volatile / inappropriate.');
+    }
+    if (interactionSummary?.hasRelative) {
+      confidenceScore -= 25;
+      confidenceReasons.push('Potential relative drug interactions are detected which require immediate clinical adjustment.');
+    }
+    if (interactionSummary?.hasAbsolute) {
+      confidenceScore -= 40;
+      confidenceReasons.push('Absolute pharmaceutical contraindications are identified.');
+    }
+    if (complications.cvd) {
+      confidenceScore -= 15;
+      confidenceReasons.push('Established Cardiovascular Disease requires strict sub-specialty evaluation and collaborative management.');
+    }
+
+    confidenceScore = Math.max(0, confidenceScore);
+
     return {
       isEligible,
       safetyState,
       reasons,
       hasContraindications: hasContraindications || hasAbsoluteDrugInteraction,
-      isUnderage: patient.age > 0 && patient.age < 18,
+      isUnderage: patient.age > 0 && (patient.age < 18 || patient.age > 110),
       isComplete,
       missingSections,
       missingFactors,
       interactionSummary,
-      isHighMetabolicRisk: patient.population === 'asian_indigenous'
+      isHighMetabolicRisk: patient.population === 'asian_indigenous',
+      confidenceScore,
+      confidenceReasons
     };
   }, [patient, complications, contraindications, interactions, comphistoryNone, contraNone, medsNone, confirmedHeight, confirmedWeight, confirmedWaist, confirmedBmi]);
 
@@ -681,6 +723,15 @@ export default function App() {
     } else {
       note += `- Not meeting criteria for GLP-1 RA at this time based on algorithm thresholds.\n`;
       note += `- Recommend ongoing lifestyle support and review metrics in 3-6 months.\n`;
+    }
+
+    if (assessment.isComplete && assessment.confidenceScore < 50) {
+      note += `\n⚠️ CLINICAL WARNING (Confidence Score: ${assessment.confidenceScore}%):\n`;
+      note += `Confidence in this recommendation is low due to the following complex factors:\n`;
+      assessment.confidenceReasons.forEach(r => {
+        note += `  * ${r}\n`;
+      });
+      note += `Action: Clinicians are strongly advised to seek specialist advice (e.g. endocrinology, cardiology, or bariatric coordination) prior to treatment initiation.\n`;
     }
     
     note += `\nNote generated via Clinical Decision Support Tool. [References: Markovic et al 2022, AJGP 2025]`;
@@ -1117,27 +1168,28 @@ export default function App() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <label className="label-upper">Age (Adults 18+)</label>
+                      <label className="label-upper">Age (Adults 18-110)</label>
                       <input 
                         type="number" 
                         className={`input-field font-bold transition-all ${patient.age > 0 ? 'border-indigo-600 text-indigo-600' : 'border-slate-300'} ${ageError ? 'ring-2 ring-red-500 border-red-500' : ''}`}
                         placeholder="__"
                         min="18"
+                        max="110"
                         value={patient.age || ''}
                         onChange={(e) => {
                           const val = parseInt(e.target.value) || 0;
                           // Clear error if it becomes valid while typing
-                          if (val >= 18 || val === 0) {
+                          if ((val >= 18 && val <= 110) || val === 0) {
                             setAgeError(false);
                           }
                           
-                          if (val === 0 || val >= 18 || (val > 0 && val < 10)) {
+                          if (val === 0 || val <= 110) {
                             handlePatientChange('age', val);
                           }
                         }}
                         onBlur={(e) => {
                           const val = parseInt(e.target.value) || 0;
-                          if (val > 0 && val < 18) {
+                          if (val > 0 && (val < 18 || val > 110)) {
                             handlePatientChange('age', 0);
                             setAgeError(true);
                           } else {
@@ -1151,7 +1203,7 @@ export default function App() {
                           animate={{ opacity: 1, y: 0 }}
                           className="text-[9px] font-black text-red-600 uppercase tracking-widest mt-1 bg-red-50 px-2 py-1 rounded-md border border-red-100 inline-block"
                         >
-                          Age must be 18+
+                          Age must be between 18 and 110
                         </motion.p>
                       )}
                     </div>
@@ -1583,7 +1635,7 @@ export default function App() {
                           {assessment.hasContraindications 
                             ? "Medical contraindications identified." 
                             : assessment.isUnderage
-                            ? "Adult patients (18+) only."
+                            ? "Adult patients (18-110) only."
                             : "Does not meet weight-based thresholds."}
                         </p>
 
@@ -1605,6 +1657,78 @@ export default function App() {
                   )}
                 </AnimatePresence>
               </div>
+
+              {/* Recommendation Confidence Index */}
+              {assessment.isComplete && (
+                <div id="recommendation-confidence-section" className="p-4 bg-slate-50/70 border border-slate-100 rounded-2xl space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] leading-none mb-1">Recommendation Confidence</h3>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wide">Adherence & Risk Certainty Index</p>
+                    </div>
+                    <span id="confidence-percentage-badge" className={`text-[10px] font-black px-2.5 py-1 rounded-full shadow-sm tracking-widest uppercase ${
+                      assessment.confidenceScore >= 70 ? 'bg-emerald-100/90 border border-emerald-300 text-emerald-800' :
+                      assessment.confidenceScore >= 50 ? 'bg-amber-100/90 border border-amber-300 text-amber-800' :
+                      'bg-rose-100/90 border border-rose-300 text-rose-800 animate-pulse'
+                    }`}>
+                      {assessment.confidenceScore}% Confidence
+                    </span>
+                  </div>
+
+                  {/* Visual Confidence Bar */}
+                  <div className="h-2 w-full bg-slate-200/80 rounded-full overflow-hidden border border-slate-300/20">
+                    <div 
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        assessment.confidenceScore >= 70 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]' :
+                        assessment.confidenceScore >= 50 ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.3)]' :
+                        'bg-rose-500 shadow-[0_0_8px_rgba(239,68,68,0.3)]'
+                      }`}
+                      style={{ width: `${assessment.confidenceScore}%` }}
+                    />
+                  </div>
+
+                  {/* Warnings for low confidence (< 50%) */}
+                  {assessment.confidenceScore < 50 ? (
+                    <div id="low-confidence-warning" className="p-4 bg-rose-50 border-2 border-rose-200 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-1 duration-300">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle size={18} className="text-rose-600 mt-0.5 shrink-0 animate-bounce" />
+                        <div className="space-y-1">
+                          <p className="font-extrabold text-xs text-rose-950 uppercase tracking-tight">Recommendation Uncertainty Indication</p>
+                          <p className="text-[10px] text-rose-900 leading-relaxed font-semibold">
+                            Our calculated clinical confidence in this eligibility recommendation is <span className="underline font-black">{assessment.confidenceScore}%</span>, which is below the 50% threshold. This represents a highly atypical patient cohort, substantial clinical complexity, or compounding contraindications/interactions.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="bg-white/75 p-3 rounded-lg border border-rose-100 space-y-1 text-[10px] text-rose-950">
+                        <p className="font-extrabold uppercase text-[9px] text-rose-700 tracking-wider mb-1 flex items-center gap-1">
+                          <span className="w-1 h-1 rounded-full bg-rose-500" />
+                          Identified Divergence Factors:
+                        </p>
+                        <ul className="space-y-1">
+                          {assessment.confidenceReasons.map((reason, idx) => (
+                            <li key={idx} className="flex items-start gap-1.5 leading-normal font-semibold">
+                              <span className="text-rose-500 shrink-0 select-none">•</span>
+                              <span>{reason}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="p-3 bg-rose-100 border border-rose-200 rounded-lg flex items-start gap-2 text-[10.5px] font-black text-rose-950 uppercase tracking-tight leading-normal">
+                        <span className="shrink-0 mt-0.5 animate-pulse text-rose-700">➜</span>
+                        <p>
+                          Critical Action: We strongly advise that you seek specialist and multidisciplinary expert advice (e.g., from an Endocrinologist, Cardiologist, or Obesity Specialist) prior to adopting or administering this recommendation.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[9.5px] text-slate-500 leading-normal font-medium">
+                      Confidence scoring accounts for factors like age groups, metabolic risk profiles, active comorbidity density, and potential drug-drug interactions. Higher is closer to standard clinical trials evidence.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Criteria Met */}
               {assessment.reasons.length > 0 && (
