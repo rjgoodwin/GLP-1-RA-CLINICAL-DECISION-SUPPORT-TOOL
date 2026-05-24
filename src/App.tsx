@@ -1659,7 +1659,7 @@ export default function App() {
               </div>
 
               {/* Recommendation Confidence Index */}
-              {assessment.isComplete && (
+              {assessment.isComplete && assessment.confidenceScore < 50 && (
                 <div id="recommendation-confidence-section" className="p-4 bg-slate-50/70 border border-slate-100 rounded-2xl space-y-3.5">
                   <div className="flex items-center justify-between">
                     <div>
