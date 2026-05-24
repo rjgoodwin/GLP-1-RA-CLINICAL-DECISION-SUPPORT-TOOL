@@ -496,7 +496,7 @@ export default function App() {
     const hasUnconfirmedHeight = patient.height > 220 && !confirmedHeight;
     const hasUnconfirmedWeight = patient.weight > 200 && !confirmedWeight;
     const hasUnconfirmedWaist = patient.waistCircumference > 150 && !confirmedWaist;
-    const hasUnconfirmedBmi = patient.bmi > 0 && patient.bmi < 15 && !confirmedBmi;
+    const hasUnconfirmedBmi = patient.bmi > 0 && (patient.bmi < 15 || patient.bmi > 50) && !confirmedBmi;
     const hasUnconfirmedExtreme = hasUnconfirmedHeight || hasUnconfirmedWeight || hasUnconfirmedWaist || hasUnconfirmedBmi;
 
     const isComplete = isWeightComplete && isHeightComplete && isWaistComplete && 
@@ -948,14 +948,14 @@ export default function App() {
               </div>
 
               {/* Extreme Value Warning/Confirmation Alert */}
-              {(patient.height > 220 || patient.weight > 200 || patient.waistCircumference > 150 || (patient.bmi > 0 && patient.bmi < 15)) && (
+              {(patient.height > 220 || patient.weight > 200 || patient.waistCircumference > 150 || (patient.bmi > 0 && (patient.bmi < 15 || patient.bmi > 50))) && (
                 <div 
                   id="anthropometry-threshold-warning" 
                   className={`p-3 border rounded-xl flex items-start gap-2.5 animate-in fade-in slide-in-from-top-1 duration-200 transition-all ${
                     (patient.height > 220 && !confirmedHeight) || 
                     (patient.weight > 200 && !confirmedWeight) || 
                     (patient.waistCircumference > 150 && !confirmedWaist) ||
-                    (patient.bmi > 0 && patient.bmi < 15 && !confirmedBmi)
+                    (patient.bmi > 0 && (patient.bmi < 15 || patient.bmi > 50) && !confirmedBmi)
                       ? "bg-rose-50 border-rose-200/60"
                       : "bg-emerald-50/50 border-emerald-200/60"
                   }`}
@@ -963,7 +963,7 @@ export default function App() {
                   {((patient.height > 220 && !confirmedHeight) || 
                     (patient.weight > 200 && !confirmedWeight) || 
                     (patient.waistCircumference > 150 && !confirmedWaist) ||
-                    (patient.bmi > 0 && patient.bmi < 15 && !confirmedBmi)) ? (
+                    (patient.bmi > 0 && (patient.bmi < 15 || patient.bmi > 50) && !confirmedBmi)) ? (
                     <AlertTriangle size={16} className="text-rose-600 mt-0.5 shrink-0 animate-bounce" />
                   ) : (
                     <CheckCircle2 size={16} className="text-emerald-600 mt-0.5 shrink-0" />
@@ -973,14 +973,14 @@ export default function App() {
                       ((patient.height > 220 && !confirmedHeight) || 
                        (patient.weight > 200 && !confirmedWeight) || 
                        (patient.waistCircumference > 150 && !confirmedWaist) ||
-                       (patient.bmi > 0 && patient.bmi < 15 && !confirmedBmi))
+                       (patient.bmi > 0 && (patient.bmi < 15 || patient.bmi > 50) && !confirmedBmi))
                         ? "text-rose-950"
                         : "text-emerald-950"
                     }`}>
                       {((patient.height > 220 && !confirmedHeight) || 
                         (patient.weight > 200 && !confirmedWeight) || 
                         (patient.waistCircumference > 150 && !confirmedWaist) ||
-                        (patient.bmi > 0 && patient.bmi < 15 && !confirmedBmi))
+                        (patient.bmi > 0 && (patient.bmi < 15 || patient.bmi > 50) && !confirmedBmi))
                           ? "Please Confirm Measurements Accuracy"
                           : "Extreme Measurements Confirmed"}
                     </p>
@@ -988,14 +988,14 @@ export default function App() {
                       ((patient.height > 220 && !confirmedHeight) || 
                        (patient.weight > 200 && !confirmedWeight) || 
                        (patient.waistCircumference > 150 && !confirmedWaist) ||
-                       (patient.bmi > 0 && patient.bmi < 15 && !confirmedBmi))
+                       (patient.bmi > 0 && (patient.bmi < 15 || patient.bmi > 50) && !confirmedBmi))
                         ? "text-rose-900"
                         : "text-emerald-900"
                     }`}>
                       {((patient.height > 220 && !confirmedHeight) || 
                         (patient.weight > 200 && !confirmedWeight) || 
                         (patient.waistCircumference > 150 && !confirmedWaist) ||
-                        (patient.bmi > 0 && patient.bmi < 15 && !confirmedBmi))
+                        (patient.bmi > 0 && (patient.bmi < 15 || patient.bmi > 50) && !confirmedBmi))
                           ? "One or more values are unusually extreme. Please click on each flagged button below to confirm that it is indeed accurate before assessment can continue."
                           : "All uncommonly extreme values have been reviewed and confirmed accurate by clinical staff."}
                     </p>
@@ -1054,7 +1054,7 @@ export default function App() {
                           <span>Waist: {patient.waistCircumference} cm</span>
                         </button>
                       )}
-                      {patient.bmi > 0 && patient.bmi < 15 && (
+                      {patient.bmi > 0 && (patient.bmi < 15 || patient.bmi > 50) && (
                         <button
                           type="button"
                           onClick={() => setConfirmedBmi(!confirmedBmi)}
