@@ -1521,10 +1521,10 @@ export default function App() {
                     <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.15em] mb-2">pharmacotherapy dosing guide</h3>
                   </div>
                   
-                  <div className="p-4 bg-indigo-50/50 border border-indigo-100/50 rounded-2xl flex items-start gap-4">
-                    <ShieldCheck size={16} className="text-indigo-600 mt-0.5 shrink-0" />
-                    <p className="text-[10px] text-indigo-900/70 leading-relaxed font-semibold">
-                      <span className="font-bold text-indigo-900 uppercase">Clinical Recommendation:</span> Dosage information is provided from the Australian Obesity Management Algorithm and clinical review articles [1, 2, 3]. These doses are general recommendations only. Clinicians must exercise independent professional judgment to determine whether these recommendations are appropriate for their individual patient.
+                  <div className="p-4 bg-rose-50/50 border border-rose-200/50 rounded-2xl flex items-start gap-4">
+                    <ShieldCheck size={16} className="text-rose-600 mt-0.5 shrink-0" />
+                    <p className="text-[10px] text-rose-900 leading-relaxed font-semibold">
+                      <span className="font-bold text-rose-950 uppercase">Clinical Recommendation:</span> Dosage information is provided from the Australian Obesity Management Algorithm and clinical review articles [1, 2, 3]. These doses are general recommendations only. Clinicians must exercise independent professional judgment to determine whether these recommendations are appropriate for their individual patient.
                     </p>
                   </div>
 
@@ -1608,28 +1608,28 @@ export default function App() {
                   </div>
 
                   <div className="space-y-2">
-                    <h3 className="text-[10px] font-black text-rose-500 uppercase tracking-[0.15em] mb-1">Potential Side Effects [1, 2, 3]</h3>
-                    <div className="p-3 bg-rose-50/30 border border-rose-100/50 rounded-2xl">
+                    <h3 className="text-[10px] font-black text-orange-600 uppercase tracking-[0.15em] mb-1">Potential Side Effects [1, 2, 3]</h3>
+                    <div className="p-3 bg-orange-50/30 border border-orange-100/50 rounded-2xl">
                       <div className="grid grid-cols-1 gap-2">
                         {medications
                           .filter(m => selectedMedChoices.includes(m.name))
                           .map((med) => (
                             <div key={med.name} className="space-y-1">
-                              <p className="text-[9px] font-black text-rose-900 uppercase tracking-tighter flex items-center gap-1.5">
-                                <span className="w-1 h-1 rounded-full bg-rose-400" />
+                              <p className="text-[9px] font-black text-orange-900 uppercase tracking-tighter flex items-center gap-1.5">
+                                <span className="w-1 h-1 rounded-full bg-orange-400" />
                                 {med.name}
                               </p>
                               <div className="flex flex-wrap gap-1 ml-2.5">
                                 {med.sideEffects.map((effect, idx) => (
-                                  <span key={idx} className="px-1.5 py-0.5 bg-white border border-rose-100 rounded text-[8px] font-bold text-rose-700/80 uppercase">
+                                  <span key={idx} className="px-1.5 py-0.5 bg-white border border-orange-100 rounded text-[8px] font-bold text-orange-700 uppercase">
                                     {effect}
                                   </span>
                                 ))}
                                 {/* Adding standardized clinical highlights if missing */}
-                                <span className="px-1.5 py-0.5 bg-white border border-rose-100 rounded text-[8px] font-bold text-rose-700/80 uppercase">
+                                <span className="px-1.5 py-0.5 bg-white border border-orange-100 rounded text-[8px] font-bold text-orange-700 uppercase">
                                   Heart Rate Increase
                                 </span>
-                                <span className="px-1.5 py-0.5 bg-white border border-rose-100 rounded text-[8px] font-bold text-rose-700/80 uppercase italic">
+                                <span className="px-1.5 py-0.5 bg-white border border-orange-100 rounded text-[8px] font-bold text-orange-700 uppercase italic">
                                   AKI Risk (if dehydrated)
                                 </span>
                               </div>
@@ -1732,15 +1732,15 @@ export default function App() {
                 ))}
               </ul>
             </div>
-            <div className="p-4 bg-indigo-600 rounded-[28px] text-white shadow-xl shadow-indigo-100">
+            <div className="p-4 bg-rose-600 rounded-[28px] text-white shadow-xl shadow-rose-100">
               <div className="flex items-center gap-2 mb-2">
-                <Info size={16} className="text-indigo-200" />
+                <Info size={16} className="text-rose-200" />
                 <h3 className="font-extrabold uppercase tracking-widest text-xs">Medical Disclaimer</h3>
               </div>
-              <p className="text-[10px] font-medium leading-normal text-indigo-50/90 italic">
+              <p className="text-[10px] font-medium leading-normal text-rose-50/90 italic">
                 Decision support only. Not a replacement for clinical judgment. Always verify dosing, contraindications, drug interactions and side effects with TGA product materials.
               </p>
-              <div className="mt-4 pt-3 border-t border-white/20 flex items-center justify-between text-[8px] font-black uppercase tracking-widest text-indigo-200">
+              <div className="mt-4 pt-3 border-t border-white/20 flex items-center justify-between text-[8px] font-black uppercase tracking-widest text-rose-200">
                 <span>V1.2 Release</span>
                 <span>© 2026 Clinical Decision Support</span>
               </div>
