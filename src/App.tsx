@@ -246,6 +246,9 @@ export default function App() {
   const [isCalculating, setIsCalculating] = useState(false);
   const [ageError, setAgeError] = useState(false);
   const [selectedMedChoices, setSelectedMedChoices] = useState<string[]>([]);
+  const [confirmedHeight, setConfirmedHeight] = useState<boolean>(false);
+  const [confirmedWeight, setConfirmedWeight] = useState<boolean>(false);
+  const [confirmedWaist, setConfirmedWaist] = useState<boolean>(false);
 
   const handleReset = () => {
     setHasConsent(false);
@@ -259,6 +262,9 @@ export default function App() {
     setCopySuccess(false);
     setAgeError(false);
     setSelectedMedChoices([]);
+    setConfirmedHeight(false);
+    setConfirmedWeight(false);
+    setConfirmedWaist(false);
     // Scroll to top for a fresh start
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -282,7 +288,10 @@ export default function App() {
     contraindications,
     comphistoryNone,
     contraNone,
-    medsNone
+    medsNone,
+    confirmedHeight,
+    confirmedWeight,
+    confirmedWaist
   ]);
 
   const calculateBMI = (weight: number, height: number) => {
@@ -296,6 +305,15 @@ export default function App() {
     const updated = { ...patient, [field]: value };
     if (field === 'weight' || field === 'height') {
       updated.bmi = calculateBMI(updated.weight, updated.height);
+    }
+    if (field === 'height') {
+      setConfirmedHeight(false);
+    }
+    if (field === 'weight') {
+      setConfirmedWeight(false);
+    }
+    if (field === 'waistCircumference') {
+      setConfirmedWaist(false);
     }
     setPatient(updated);
   };
@@ -352,6 +370,9 @@ export default function App() {
     setComphistoryNone(false);
     setContraNone(false);
     setMedsNone(false);
+    setConfirmedHeight(false);
+    setConfirmedWeight(false);
+    setConfirmedWaist(false);
   };
 
   const resetAnthropometry = () => {
@@ -362,6 +383,9 @@ export default function App() {
       bmi: 0,
       waistCircumference: 0
     }));
+    setConfirmedHeight(false);
+    setConfirmedWeight(false);
+    setConfirmedWaist(false);
   };
 
   const resetPatientContext = () => {
@@ -463,14 +487,23 @@ export default function App() {
     const isContraindicationsComplete = Object.values(contraindications).some(v => v) || contraNone;
     const isMedicationsComplete = patient.currentMedications.length > 0 || medsNone;
     
+    const hasUnconfirmedHeight = patient.height > 220 && !confirmedHeight;
+    const hasUnconfirmedWeight = patient.weight > 200 && !confirmedWeight;
+    const hasUnconfirmedWaist = patient.waistCircumference > 150 && !confirmedWaist;
+    const hasUnconfirmedExtreme = hasUnconfirmedHeight || hasUnconfirmedWeight || hasUnconfirmedWaist;
+
     const isComplete = isWeightComplete && isHeightComplete && isWaistComplete && 
                         isAgeComplete && isGenderComplete && isPopulationComplete &&
-                        isComplicationsComplete && isContraindicationsComplete && isMedicationsComplete;
+                        isComplicationsComplete && isContraindicationsComplete && isMedicationsComplete &&
+                        !hasUnconfirmedExtreme;
 
     const missingSections: string[] = [];
     if (!isWeightComplete) missingSections.push('Weight');
     if (!isHeightComplete) missingSections.push('Height');
     if (!isWaistComplete) missingSections.push('Waist Circumference');
+    if (hasUnconfirmedHeight) missingSections.push('Height Accuracy Confirmation');
+    if (hasUnconfirmedWeight) missingSections.push('Weight Accuracy Confirmation');
+    if (hasUnconfirmedWaist) missingSections.push('Waist Circumference Accuracy Confirmation');
     if (!isAgeComplete) missingSections.push('Age (Adults 18+)');
     if (!isGenderComplete) missingSections.push('Sex Assigned at Birth');
     if (!isPopulationComplete) missingSections.push('High Metabolic Risk Population status');
@@ -518,7 +551,7 @@ export default function App() {
       interactionSummary,
       isHighMetabolicRisk: patient.population === 'asian_indigenous'
     };
-  }, [patient, complications, contraindications, interactions, comphistoryNone, contraNone, medsNone]);
+  }, [patient, complications, contraindications, interactions, comphistoryNone, contraNone, medsNone, confirmedHeight, confirmedWeight, confirmedWaist]);
 
   const medications: MedicationOption[] = [
     {
@@ -905,6 +938,112 @@ export default function App() {
                 </div>
 
               </div>
+
+              {/* Extreme Value Warning/Confirmation Alert */}
+              {(patient.height > 220 || patient.weight > 200 || patient.waistCircumference > 150) && (
+                <div 
+                  id="anthropometry-threshold-warning" 
+                  className={`p-3 border rounded-xl flex items-start gap-2.5 animate-in fade-in slide-in-from-top-1 duration-200 transition-all ${
+                    (patient.height > 220 && !confirmedHeight) || 
+                    (patient.weight > 200 && !confirmedWeight) || 
+                    (patient.waistCircumference > 150 && !confirmedWaist)
+                      ? "bg-rose-50 border-rose-200/60"
+                      : "bg-emerald-50/50 border-emerald-200/60"
+                  }`}
+                >
+                  {((patient.height > 220 && !confirmedHeight) || 
+                    (patient.weight > 200 && !confirmedWeight) || 
+                    (patient.waistCircumference > 150 && !confirmedWaist)) ? (
+                    <AlertTriangle size={16} className="text-rose-600 mt-0.5 shrink-0 animate-bounce" />
+                  ) : (
+                    <CheckCircle2 size={16} className="text-emerald-600 mt-0.5 shrink-0" />
+                  )}
+                  <div className="space-y-1 w-full">
+                    <p className={`text-[10px] font-extrabold uppercase tracking-wide ${
+                      ((patient.height > 220 && !confirmedHeight) || 
+                       (patient.weight > 200 && !confirmedWeight) || 
+                       (patient.waistCircumference > 150 && !confirmedWaist))
+                        ? "text-rose-950"
+                        : "text-emerald-950"
+                    }`}>
+                      {((patient.height > 220 && !confirmedHeight) || 
+                        (patient.weight > 200 && !confirmedWeight) || 
+                        (patient.waistCircumference > 150 && !confirmedWaist))
+                          ? "Please Confirm Measurements Accuracy"
+                          : "Extreme Measurements Confirmed"}
+                    </p>
+                    <p className={`text-[10px] leading-normal font-semibold ${
+                      ((patient.height > 220 && !confirmedHeight) || 
+                       (patient.weight > 200 && !confirmedWeight) || 
+                       (patient.waistCircumference > 150 && !confirmedWaist))
+                        ? "text-rose-900"
+                        : "text-emerald-900"
+                    }`}>
+                      {((patient.height > 220 && !confirmedHeight) || 
+                        (patient.weight > 200 && !confirmedWeight) || 
+                        (patient.waistCircumference > 150 && !confirmedWaist))
+                          ? "One or more values are unusually high. Please click on each flagged button below to confirm that it is indeed accurate before assessment can continue."
+                          : "All uncommonly high values have been reviewed and confirmed accurate by clinical staff."}
+                    </p>
+                    <div className="flex flex-wrap gap-2 pt-1.5">
+                      {patient.height > 220 && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmedHeight(!confirmedHeight)}
+                          className={`px-2.5 py-1.5 border rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 ${
+                            confirmedHeight
+                              ? "bg-emerald-100/80 border-emerald-300 text-emerald-800 shadow-sm"
+                              : "bg-rose-100 hover:bg-rose-200 border-rose-300 text-rose-900 shadow-md animate-pulse"
+                          }`}
+                        >
+                          {confirmedHeight ? (
+                            <Check size={11} className="text-emerald-700 shrink-0" />
+                          ) : (
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-600 shrink-0" />
+                          )}
+                          <span>Height: {patient.height} cm</span>
+                        </button>
+                      )}
+                      {patient.weight > 200 && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmedWeight(!confirmedWeight)}
+                          className={`px-2.5 py-1.5 border rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 ${
+                            confirmedWeight
+                              ? "bg-emerald-100/80 border-emerald-300 text-emerald-800 shadow-sm"
+                              : "bg-rose-100 hover:bg-rose-200 border-rose-300 text-rose-950 shadow-md animate-pulse"
+                          }`}
+                        >
+                          {confirmedWeight ? (
+                            <Check size={11} className="text-emerald-700 shrink-0" />
+                          ) : (
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-600 shrink-0" />
+                          )}
+                          <span>Weight: {patient.weight} kg</span>
+                        </button>
+                      )}
+                      {patient.waistCircumference > 150 && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmedWaist(!confirmedWaist)}
+                          className={`px-2.5 py-1.5 border rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 ${
+                            confirmedWaist
+                              ? "bg-emerald-100/80 border-emerald-300 text-emerald-800 shadow-sm"
+                              : "bg-rose-100 hover:bg-rose-200 border-rose-300 text-rose-900 shadow-md animate-pulse"
+                          }`}
+                        >
+                          {confirmedWaist ? (
+                            <Check size={11} className="text-emerald-700 shrink-0" />
+                          ) : (
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-600 shrink-0" />
+                          )}
+                          <span>Waist: {patient.waistCircumference} cm</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
         </motion.div>
