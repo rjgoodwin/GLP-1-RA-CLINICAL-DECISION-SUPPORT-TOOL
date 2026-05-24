@@ -530,7 +530,7 @@ export default function App() {
     if (!isComplete) {
       safetyState = 'incomplete';
     } else if (isEligible) {
-      safetyState = hasRelativeDrugInteraction ? 'caution' : 'eligible';
+      safetyState = (hasRelativeDrugInteraction || patient.population === 'asian_indigenous') ? 'caution' : 'eligible';
     } else {
       safetyState = 'ineligible';
     }
