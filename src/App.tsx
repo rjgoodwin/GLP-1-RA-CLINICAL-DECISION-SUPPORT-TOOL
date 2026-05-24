@@ -10,6 +10,7 @@ import {
   CheckCircle2, 
   ChevronRight, 
   ClipboardCheck, 
+  Search,
   Info, 
   Scale, 
   Stethoscope, 
@@ -523,7 +524,7 @@ export default function App() {
     {
       name: 'Semaglutide',
       startingDose: '0.25 mg once weekly',
-      escalation: 'Increase dose every 4 weeks (0.25 mg → 0.5 mg → 1.0 mg → 1.7 mg → 2.4 mg) subject to tolerance [2, 3]',
+      escalation: 'Consider increasing dose every 4 weeks (0.25 mg → 0.5 mg → 1.0 mg → 1.7 mg → 2.4 mg) subject to tolerance [2, 3]',
       maxDose: '2.4 mg once weekly',
       contraindications: ['Medullary Thyroid Cancer', 'Multiple Endocrine Neoplasia Syndrome Type 2 (MEN2)', 'Pregnancy'],
       sideEffects: ['Nausea', 'Diarrhoea', 'Vomiting', 'Constipation', 'Pancreatitis (rare)'],
@@ -531,7 +532,7 @@ export default function App() {
     {
       name: 'Tirzepatide',
       startingDose: '2.5 mg once weekly',
-      escalation: 'Increase dose to 5 mg weekly after 4 weeks. Further increases can be made in 2.5 mg increments every 4 weeks [2, 3]',
+      escalation: 'Consider increasing dose to 5 mg weekly after 4 weeks. Further increases can be considered in 2.5 mg increments every 4 weeks [2, 3]',
       maxDose: '15 mg once weekly',
       contraindications: ['Pregnancy', 'Breastfeeding / Lactation', 'Medullary Thyroid Cancer', 'MEN2 Syndrome', 'History of Pancreatitis', 'Hypersensitivity to GLP-1 RA / GIP'],
       sideEffects: ['Nausea', 'Diarrhoea', 'Vomiting', 'Decreased appetite'],
@@ -539,11 +540,10 @@ export default function App() {
     {
       name: 'Liraglutide',
       startingDose: '0.6 mg daily',
-      escalation: 'Increase by 0.6 mg weekly until maximum dose is reached to minimize GI side effects [1, 2]',
       maxDose: '3.0 mg daily',
       contraindications: ['Pregnancy', 'Medullary Thyroid Cancer', 'MEN2 Syndrome', 'Hypersensitivity to GLP-1 RA'],
       sideEffects: ['Nausea', 'Vomiting', 'Diarrhoea', 'Constipation', 'Gallstones'],
-      escalation: 'Increase by 0.6 mg weekly until maximum dose is reached to minimize gastrointestinal side effects [1, 2]',
+      escalation: 'Consider increasing dose by 0.6 mg weekly until maximum dose is reached to minimize gastrointestinal side effects [1, 2]',
     }
   ];
 
@@ -680,7 +680,7 @@ export default function App() {
             <div>
               <h1 className="text-[10px] md:text-xl font-extrabold tracking-tight text-slate-900 leading-none py-1">
                 <span className="block uppercase">GLUCAGON-LIKE RECEPTOR-1 AGONISTS (GLP-1RAs)</span>
-                <span className="block text-indigo-600 mt-1 uppercase text-[8px] md:text-sm font-black">Safe Prescribing Aid for GPs</span>
+                <span className="block text-indigo-600 mt-1 uppercase text-[8px] md:text-sm font-black">Safe Prescribing Tool for GPs</span>
               </h1>
             </div>
           </div>
@@ -694,6 +694,24 @@ export default function App() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-3">
+        {/* AI Clinical Disclaimer Banner */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="mb-4 p-3 bg-rose-50/90 border border-rose-200 rounded-2xl flex items-start gap-3 shadow-sm"
+        >
+          <div className="p-1 px-1.5 bg-rose-100 text-rose-700 rounded-lg text-[9px] font-black shrink-0 mt-0.5 uppercase tracking-wide flex items-center gap-1">
+            <AlertTriangle size={12} className="text-rose-600 animate-pulse" />
+            AI Safety Notice
+          </div>
+          <div className="flex-1">
+            <p className="text-[10px] text-rose-950 font-semibold leading-normal">
+              Please note: AI can make mistakes. Always verify all drug dosages, titration schedules, patient details, and clinical instructions with the original clinical prescribing source or regional guidelines before proceeding.
+            </p>
+          </div>
+        </motion.div>
+
         <div className="space-y-4">
           {/* Main Inputs */}
           <div className="space-y-4">
@@ -1535,7 +1553,30 @@ export default function App() {
                             <Clock size={8} className="text-indigo-500" />
                             Escalation Schedule
                           </p>
-                          <p className="text-[10px] text-slate-600 font-bold leading-tight">{med.escalation}</p>
+                          <p className="text-[10px] text-slate-600 font-bold leading-tight mb-2">{med.escalation}</p>
+                          
+                          <div className="pt-2 border-t border-slate-100 space-y-2">
+                            <p className="text-[7px] font-black text-indigo-400 uppercase tracking-widest flex items-center gap-1">
+                              <Search size={8} />
+                              Titration Protocol [1, 2, 3]
+                            </p>
+                            <div className="grid grid-cols-1 gap-2">
+                              <div className="space-y-1">
+                                <p className="text-[8px] font-black text-slate-800 uppercase tracking-tighter italic">Appropriateness of Dose Adjustment:</p>
+                                <div className="grid grid-cols-1 gap-1.5 mt-1">
+                                  <div className="p-1 px-1.5 bg-green-50/50 border border-green-100 rounded text-[8px] leading-tight">
+                                    <span className="font-black text-green-700 uppercase">Increase:</span> Consider increasing dose if current dose is well-tolerated and target dose/weight loss not yet achieved.
+                                  </div>
+                                  <div className="p-1 px-1.5 bg-amber-50/50 border border-amber-100 rounded text-[8px] leading-tight">
+                                    <span className="font-black text-amber-700 uppercase">Maintain:</span> Consider maintaining dose if target weight loss achieved OR mild transient side effects present.
+                                  </div>
+                                  <div className="p-1 px-1.5 bg-rose-50/50 border border-rose-100 rounded text-[8px] leading-tight">
+                                    <span className="font-black text-rose-700 uppercase">Decrease/Cease:</span> Consider decreasing or ceasing dose if persistent intolerable gastrointestinal or safety concerns arise.
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1550,13 +1591,13 @@ export default function App() {
                     <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] mb-1">Safety & Monitoring [1, 2, 3]</h3>
                     <div className="grid grid-cols-2 gap-1.5">
                       {[
-                        "Monthly clinical review",
+                        "Review: One month (titration), then 3 to 6 monthly (stable)",
+                        "Check Weight and BMI",
                         "Monitor blood pressure & heart rate",
                         "home blood glucose monitoring if comorbid Type 2 diabetes",
-                        "Assess gastrointestinal symptoms",
-                        calorieTarget ? `Energy-reduced diet (~${calorieTarget.min}-${calorieTarget.max} kcal/day)` : "Energy-reduced diet",
-                        "Activity (150-300 mins/week)",
-                        "Lifestyle intervention"
+                        "Assess gastrointestinal tolerance & GI symptoms",
+                        "Review activity (150-300min/wk) & diet adherence",
+                        calorieTarget ? `Energy-reduced diet (~${calorieTarget.min}-${calorieTarget.max} kcal/day)` : "Energy-reduced diet"
                       ].map((item, i) => (
                         <div key={i} className="flex items-center gap-2 px-2 py-1.5 bg-slate-50/50 rounded-lg text-[9px] font-bold text-slate-500 border border-slate-100 hover:bg-white transition-all">
                           <div className="w-1 h-1 rounded-full bg-indigo-400 shrink-0 shadow-[0_0_4px_rgba(129,140,248,0.5)]" />
