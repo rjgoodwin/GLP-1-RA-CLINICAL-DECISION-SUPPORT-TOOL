@@ -707,7 +707,7 @@ export default function App() {
           </div>
           <div className="flex-1">
             <p className="text-[10px] text-rose-950 font-semibold leading-normal">
-              Please note: AI can make mistakes. Always verify all drug dosages, titration schedules, patient details, and clinical instructions with the original clinical prescribing source or regional guidelines before proceeding.
+              Please note: AI can make mistakes. This is not a medical device and is a decision support tool only. Always verify all drug dosages, titration schedules, patient details, and clinical instructions with the original clinical prescribing source or regional guidelines before proceeding.
             </p>
           </div>
         </motion.div>
