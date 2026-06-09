@@ -1,8 +1,5 @@
 # GLUCAGON-LIKE PEPTIDE-1 RECEPTOR AGONIST (GLP-1RA) CLINICAL DECISION SUPPORT TOOL
 This evidence-based Digital Health App is designed to assist GPs in the safe and efficient prescription of GLP-1RAs as an adjunct to lifestyle intervention in the management of weight loss in overweight and obese Australian adults. The App is designed for GPs to use in consultation with potentially eligible patients to streamline what may otherwise be a complex and time-consuming exercise. As a GP, I wanted to create a clinical tool for GPs to use when assessing potentially eligible patients for the prescription of GLP-1RAs so that patient safety is optimised and GP prescribing efficiency is improved.
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
 
 # Run and deploy your AI Studio app
 
